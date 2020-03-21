@@ -18,7 +18,7 @@ DEFAULT_CONFIG = {
     "min_cumulative_reward": -2000,                 # Minimum cumulative reward received before episode ends
     "max_timesteps": 10000,                         # Maximum amount of timesteps before episode ends
     "min_goal_distance": 5,                         # Minimum aboslute distance to the goal position before episode ends
-    
+
     # ---- SIMULATION ---- #
     "t_step_size": 1.0,                             # Length of simulation timestep [s]
     "sensor_frequency": 1.0,                        # Sensor execution frequency (0.0 = never execute, 1.0 = always execute)
@@ -37,7 +37,7 @@ DEFAULT_CONFIG = {
                                                     # or if a virtual obstacle based on the latest reading should be used (False).
                                                     # This represents a trade-off between sensor accuracy and computation speed.
                                                     # With real-world terrain, using virtual obstacles is critical for performance.
-    
+
     # ---- RENDERING ---- #
     "show_indicators": True,                        # Whether to show debug information on screen during 2d rendering.
     'autocamera3d': False                           # Whether to let the camera automatically rotate during 3d rendering
@@ -54,7 +54,7 @@ REALWORLD_CONFIG = DEFAULT_CONFIG.copy()
 REALWORLD_CONFIG['t_step_size'] = 1.0
 
 SCENARIOS = {
-    'TestScenario1-v0': {   
+    'TestScenario1-v0': {
         'entry_point': 'gym_auv.envs:TestScenario1',
         'config': DEFAULT_CONFIG
     },
@@ -92,6 +92,10 @@ SCENARIOS = {
     },
     'MovingObstacles-v0': {
         'entry_point': 'gym_auv.envs:MovingObstacles',
+        'config': MOVING_CONFIG
+    },
+    'MultiAgent-v0': {
+        'entry_point': 'gym_auv.envs:MultiAgent',
         'config': MOVING_CONFIG
     }
 }

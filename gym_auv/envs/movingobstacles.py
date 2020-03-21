@@ -8,7 +8,7 @@ from gym_auv.objects.obstacles import PolygonObstacle, VesselObstacle, CircularO
 from gym_auv.environment import ASV_Scenario
 import shapely.geometry, shapely.errors
 
-import os 
+import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 class MovingObstacles(ASV_Scenario):
@@ -28,7 +28,7 @@ class MovingObstacles(ASV_Scenario):
         prog = 0
         self.path_prog_hist = np.array([prog])
         self.max_path_prog = prog
-        
+
         self.obstacles = []
 
         # Adding moving obstacles
@@ -41,7 +41,7 @@ class MovingObstacles(ASV_Scenario):
 
             for i in range(10000):
                 other_vessel_trajectory.append((i, (
-                    obst_position[0] + i*obst_speed*np.cos(obst_direction), 
+                    obst_position[0] + i*obst_speed*np.cos(obst_direction),
                     obst_position[1] + i*obst_speed*np.sin(obst_direction)
                 )))
             other_vessel_obstacle = VesselObstacle(width=obst_radius, trajectory=other_vessel_trajectory)
@@ -54,4 +54,3 @@ class MovingObstacles(ASV_Scenario):
             self.obstacles.append(obstacle)
 
         self._update()
-

@@ -26,22 +26,22 @@ class ASV_Scenario(gym.Env):
         Parameters
         ----------
             env_config : dict
-                Configuration parameters for the environment. 
+                Configuration parameters for the environment.
                 The default values are set in __init__.py
             test_mode : bool
-                If test_mode is True, the environment will not be autonatically reset 
-                due to too low cumulative reward or too large distance from the path. 
+                If test_mode is True, the environment will not be autonatically reset
+                due to too low cumulative reward or too large distance from the path.
             render_mode : {'2d', '3d', 'both'}
                 Whether to use 2d or 3d rendering. 'both' is currently broken.
             verbose
                 Whether to print debugging information.
         """
-        
+
         self.test_mode = test_mode
         self.render_mode = render_mode
         self.verbose = verbose
         self.config = env_config
-        
+
         # Setting dimension of observation vector
         self.n_observations = len(Vessel.NAVIGATION_STATES) + 3*self.config["n_sectors"]
 
@@ -52,10 +52,10 @@ class ASV_Scenario(gym.Env):
         self.rewarder = ColavRewarder()
 
         # Declaring attributes
-        self.obstacles = None
+        #self.obstacles = None
         self.vessel = None
-        self.path = None
-        
+        #self.path = None
+
         self.reached_goal = None
         self.collision = None
         self.progress = None
@@ -148,7 +148,7 @@ class ASV_Scenario(gym.Env):
         sector_closenesses, sector_velocities, collision = self.vessel.perceive(self.obstacles)
 
         obs = np.concatenate([navigation_states, sector_closenesses, sector_velocities])
-        return (obs, collision, reached_goal, progress) 
+        return (obs, collision, reached_goal, progress)
 
     def step(self, action):
         """

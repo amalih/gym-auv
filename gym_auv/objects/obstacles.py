@@ -64,7 +64,7 @@ class VesselObstacle(Obstacle):
 
             for _ in range(cur_t, next_t):
                 self.trajectory_velocities.append((dx, dy))
-            
+
             i+= 1
 
         self.waypoint_counter = 0
@@ -110,6 +110,3 @@ class VesselObstacle(Obstacle):
         boundary_temp = shapely.affinity.translate(boundary_temp, xoff=self.position[0], yoff=self.position[1])
 
         self.boundary = boundary_temp
-
-
-        

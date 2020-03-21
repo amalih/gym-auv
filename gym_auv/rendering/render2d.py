@@ -19,6 +19,7 @@ import math
 from numpy import sin, cos, arctan2
 from gym import error
 import gym_auv.utils.geomutils as geom
+from gym_auv.objects.vessel import Vessel
 from gym_auv.objects.obstacles import CircularObstacle, PolygonObstacle, VesselObstacle
 
 if "Apple" in sys.version:
@@ -26,7 +27,7 @@ if "Apple" in sys.version:
         os.environ['DYLD_FALLBACK_LIBRARY_PATH'] += ':/usr/lib'
         # (JDS 2016/04/15): avoid bug on Anaconda 2.3.0 / Yosemite
 
-STATE_W = 96 
+STATE_W = 96
 STATE_H = 96
 VIDEO_W = 720
 VIDEO_H = 600
@@ -428,7 +429,7 @@ def _render_sensors(env):
             p0[0] + np.cos(sensor_angle+env.vessel.heading)*distance,
             p0[1] + np.sin(sensor_angle+env.vessel.heading)*distance
         )
-        
+
         closeness = env.vessel.last_sector_dist_measurements[isector]
         redness = 0.5 + 0.5*max(0, closeness)
         greenness = 1 - max(0, closeness)
@@ -439,7 +440,7 @@ def _render_sensors(env):
 def _render_progress(env):
     progress_point = env.path(env.max_path_prog).flatten()
     env.viewer2d.draw_circle(origin=progress_point, radius=1, res=30, color=(0.8, 0.3, 0.3))
-    
+
     target_point = env.path(env.target_arclength).flatten()
     env.viewer2d.draw_circle(origin=target_point, radius=1, res=30, color=(0.3, 0.8, 0.3))
 
@@ -455,10 +456,14 @@ def _render_obstacles(env):
 
         elif isinstance(obst, PolygonObstacle):
             env.viewer2d.draw_shape(obst.points, color=c)
-        
+
         elif isinstance(obst, VesselObstacle):
             env.viewer2d.draw_shape(list(obst.boundary.exterior.coords), color=c)
-        
+
+        elif isinstance(obst, Vessel):
+            env.viewer2d.draw_shape(list(obst.boundary.exterior.coords), color=c)
+
+
 
 def _render_tiles(env, win):
     global env_bg
@@ -503,7 +508,7 @@ def _render_indicators(env, W, H):
     gl.glVertex3f(0, 5*h, 0)
     gl.glVertex3f(0, 0, 0)
     gl.glEnd()
-    
+
     env.viewer2d.reward_text_field.text = "Current Reward:"
     env.viewer2d.reward_text_field.draw()
     env.viewer2d.reward_value_field.text = "{:2.3f}".format(env.last_reward)
@@ -563,7 +568,7 @@ def render_env(env, mode):
 
         if env.config["show_indicators"]:
             _render_indicators(env, WINDOW_W, WINDOW_H)
-            
+
     scroll_x = env.vessel.position[0]
     scroll_y = env.vessel.position[1]
     ship_angle = -env.vessel.heading + np.pi/2
