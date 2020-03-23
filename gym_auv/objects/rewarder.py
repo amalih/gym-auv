@@ -116,7 +116,7 @@ class MultiRewarder(BaseRewarder):
         super().__init__(vessel)
         self.params['gamma_theta'] = 5
         self.params['gamma_x'] = 0.5
-        self.params['gamma_y_e'] = 0.05
+        self.params['gamma_y_e'] = 1
         self.params['penalty_yawrate'] = 1.0
         self.params['penalty_torque_change'] = 2
         self.params['cruise_speed'] = 0.1

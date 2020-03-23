@@ -176,11 +176,12 @@ class ASV_Scenario(gym.Env):
         #action[0] = (action[0] + 1)/2 # Done to be compatible with RL algorithms that require symmetric action spaces
         if np.isnan(action).any(): action = np.zeros(action.shape)
 
+        # Updating vessel state from its dynamics model
+        self.vessel.step(action)
+
         # If the environment is dynamic, calling self.update will change it.
         self._update()
 
-        # Updating vessel state from its dynamics model
-        self.vessel.step(action)
 
         # Getting observation vector
         obs, collision, reached_goal, progress = self.observe()

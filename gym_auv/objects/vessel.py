@@ -137,7 +137,7 @@ class Vessel():
         'cross_track_error'
     ]
 
-    def __init__(self, config, init_pos=None, width=4, index=None):
+    def __init__(self, config, init_pos=None, width=4, index=None, path_length=800):
         """
         The __init__ method declares all class atributes.
 
@@ -151,32 +151,6 @@ class Vessel():
             in meters. Defaults to 2.
         """
 
-        # hyperparams = {
-        #     # 'n_steps': 1024,
-        #     # 'nminibatches': 32,
-        #     # 'lam': 0.95,
-        #     # 'gamma': 0.99,
-        #     # 'noptepochs': 10,
-        #     # 'ent_coef': 0.0,
-        #     # 'learning_rate': 0.0003,
-        #     # 'cliprange': 0.2,
-        #     'n_steps': 1024,
-        #     'nminibatches': 32,
-        #     'lam': 0.98,
-        #     'gamma': 0.999,
-        #     'noptepochs': 4,
-        #     'ent_coef': 0.01,
-        #     'learning_rate': 2e-4,
-        # }
-        # #policy_kwargs = dict(act_fun=tf.nn.tanh, net_arch=[64, 64, 64])
-        # #policy_kwargs = dict(net_arch=[64, 64, 64])
-        # #layers = [256, 128, 64, 32, 16, 8]
-        # layers = [64, 64]
-        # policy_kwargs = dict(net_arch = [dict(vf=layers, pi=layers)])
-        # self.agent = PPO2(MlpPolicy,
-        #     vec_env, verbose=True, tensorboard_log=tensorboard_log,
-        #     **hyperparams, policy_kwargs=policy_kwargs
-        # )
 
         if index != None:
             self.index = index
@@ -189,7 +163,7 @@ class Vessel():
             #if self.rng is None:
             self.seed()
             nwaypoints = int(np.floor(4*self.rng.rand() + 2))
-            self.path = RandomCurveThroughOrigin(nwaypoints, length=800)
+            self.path = RandomCurveThroughOrigin(nwaypoints, length=path_length)
 
             # Initializing vessel
             init_loc = self.path(0)
@@ -225,7 +199,11 @@ class Vessel():
         self.sector_end_indeces = [0]*self.n_sectors
         self.sensor_obst_dynamic = [0]*self.n_sectors
         self.sensor_internal_indeces = []
-        self._sensor_interval = max(1, int(1/self.config["sensor_frequency"]))
+        self._sensor_frequency = self.config["sensor_frequency"]
+        if self.index != 0:
+            self._sensor_frequency *= 0.8
+        self._sensor_interval = max(1, int(1/self._sensor_frequency))
+
 
         # Calculating sensor partitioning
         last_isector = -1
@@ -424,7 +402,7 @@ class Vessel():
 
             # Testing if vessel has collided
             collision = any(
-                float(p0_point.distance(obst.boundary)) - self.width <= 0 for obst in self._nearby_obstacles
+                float(p0_point.distance(obst.boundary)) - 3*self.width <= 0 for obst in self._nearby_obstacles
             )
 
             #print(f'Ship {self.index} collided, nearby moving obstacles: {[x.index for x in self._nearby_obstacles if (not x.static and float(p0_point.distance(x.boundary)) - self.width <= 0)]}')
@@ -456,7 +434,7 @@ class Vessel():
         )[1]
 
         # Calculating tangential path direction at look-ahead point
-        target_arclength = vessel_arclength + self.config["look_ahead_distance"]
+        target_arclength = min(path.length, vessel_arclength + self.config["look_ahead_distance"])
         look_ahead_path_direction = path.get_direction(target_arclength)
         look_ahead_heading_error = float(geom.princip(look_ahead_path_direction - self.heading))
 

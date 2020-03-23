@@ -27,11 +27,11 @@ DEFAULT_CONFIG = {
     "vessel_width": 4.0,                            # Width of vessel [m]
     "look_ahead_distance": 0.1,                     # Path look-ahead distance for vessel as percentage of path length
     "sensor_interval_load_obstacles": 25,           # Interval for loading nearby obstacles
-    "n_sensors_per_sector": 29,                     # Number of rangefinder sensors within each sector
+    "n_sensors_per_sector": 15,                     # Number of rangefinder sensors within each sector
     "n_sectors": 9,                                 # Number of sensor sectors
     "sector_partition_fun": sector_partition_fun,   # Function that returns corresponding sector for a given sensor index
     "sensor_rotation": False,                       # Whether to activate the sectors in a rotating pattern (for performance reasons)
-    "sensor_range": 150.0,                            # Range of rangefinder sensors [m]
+    "sensor_range": 100.0,                            # Range of rangefinder sensors [m]
     "sensor_log_transform": True,                   # Whether to use a log. transform when calculating closeness                 #
     "observe_obstacle_fun": observe_obstacle_fun,   # Function that outputs whether an obstacle should be observed (True),
                                                     # or if a virtual obstacle based on the latest reading should be used (False).

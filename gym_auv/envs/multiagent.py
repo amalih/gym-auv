@@ -115,14 +115,20 @@ class MultiAgent(ASV_Scenario):
         self.static_obstacles = []
 
         #Adding static obstacles
-        for _ in range(8):
-           obstacle = CircularObstacle(*helpers.generate_obstacle(self.rng, self.vessel.path, self.vessel))
-           self.static_obstacles.append(obstacle)
+        #for _ in range(8):
+        #   obstacle = CircularObstacle(*helpers.generate_obstacle(self.rng, self.vessel.path, self.vessel))
+        #   self.static_obstacles.append(obstacle)
 
         #Adding moving obstacles (ships)
-        for i in range(1,10):
+        for i in range(1,20):
             #obst_speed = np.random.random()
             ship = Vessel(self.config, width=self.config["vessel_width"], index=i)
+            self.moving_obstacles.append(ship)
+            print(f'Ship {i} has been created')
+
+        for i in range(1,5):
+            #obst_speed = np.random.random()
+            ship = Vessel(self.config, width=self.config["vessel_width"], index=i, path_length=600)
             self.moving_obstacles.append(ship)
             print(f'Ship {i} has been created')
 
