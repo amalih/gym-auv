@@ -46,6 +46,9 @@ DEFAULT_CONFIG = {
 MOVING_CONFIG = DEFAULT_CONFIG.copy()
 MOVING_CONFIG['observe_obstacle_fun'] = return_true_fun
 
+MULTI_CONFIG = MOVING_CONFIG.copy()
+MULTI_CONFIG['n_ships'] = 10
+
 DEBUG_CONFIG = DEFAULT_CONFIG.copy()
 DEBUG_CONFIG['t_step_size'] = 0.5
 DEBUG_CONFIG['min_goal_distance'] = 0.1
@@ -96,7 +99,7 @@ SCENARIOS = {
     },
     'MultiAgent-v0': {
         'entry_point': 'gym_auv.envs:MultiAgent',
-        'config': MOVING_CONFIG
+        'config': MULTI_CONFIG
     }
 }
 

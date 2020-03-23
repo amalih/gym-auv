@@ -122,7 +122,7 @@ class ASV_Scenario(gym.Env):
         if self.verbose:    print('Generated scenario')
 
         # Resetting rewarder instance
-        self.rewarder.reset(self.vessel)
+        self.rewarder = MultiRewarder(self.vessel)
 
         # Initializing 3d viewer
         if self.render_mode == '3d':
@@ -171,7 +171,9 @@ class ASV_Scenario(gym.Env):
             Dictionary with data used for reporting or debugging
         """
 
-        action[0] = (action[0] + 1)/2 # Done to be compatible with RL algorithms that require symmetric action spaces
+        #print('In STEP in ENV')
+
+        #action[0] = (action[0] + 1)/2 # Done to be compatible with RL algorithms that require symmetric action spaces
         if np.isnan(action).any(): action = np.zeros(action.shape)
 
         # If the environment is dynamic, calling self.update will change it.
@@ -207,7 +209,7 @@ class ASV_Scenario(gym.Env):
         self._save_latest_step()
 
         self.t_step += 1
-
+        #print('Exiting STEP in ENV')
         return obs, reward, done, info
 
     def _update(self):

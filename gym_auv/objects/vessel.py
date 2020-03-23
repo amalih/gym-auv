@@ -13,6 +13,15 @@ import gym_auv.utils.geomutils as geom
 from gym_auv.objects.obstacles import *
 from gym.utils import seeding
 
+from stable_baselines import PPO2
+
+
+#from stable_baselines.common import set_global_seeds
+from stable_baselines.common.policies import MlpPolicy #, MlpLstmPolicy, MlpLnLstmPolicy
+#from stable_baselines.common.vec_env import VecVideoRecorder, DummyVecEnv, SubprocVecEnv
+#from stable_baselines.ddpg import AdaptiveParamNoiseSpec, NormalActionNoise, LnMlpPolicy
+from stable_baselines import PPO2
+
 import glob
 import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -123,8 +132,8 @@ class Vessel():
         'surge_velocity',
         'sway_velocity',
         'yaw_rate',
-        'look_ahead_course_error',
-        'course_error',
+        'look_ahead_heading_error',
+        'heading_error',
         'cross_track_error'
     ]
 
@@ -142,6 +151,33 @@ class Vessel():
             in meters. Defaults to 2.
         """
 
+        # hyperparams = {
+        #     # 'n_steps': 1024,
+        #     # 'nminibatches': 32,
+        #     # 'lam': 0.95,
+        #     # 'gamma': 0.99,
+        #     # 'noptepochs': 10,
+        #     # 'ent_coef': 0.0,
+        #     # 'learning_rate': 0.0003,
+        #     # 'cliprange': 0.2,
+        #     'n_steps': 1024,
+        #     'nminibatches': 32,
+        #     'lam': 0.98,
+        #     'gamma': 0.999,
+        #     'noptepochs': 4,
+        #     'ent_coef': 0.01,
+        #     'learning_rate': 2e-4,
+        # }
+        # #policy_kwargs = dict(act_fun=tf.nn.tanh, net_arch=[64, 64, 64])
+        # #policy_kwargs = dict(net_arch=[64, 64, 64])
+        # #layers = [256, 128, 64, 32, 16, 8]
+        # layers = [64, 64]
+        # policy_kwargs = dict(net_arch = [dict(vf=layers, pi=layers)])
+        # self.agent = PPO2(MlpPolicy,
+        #     vec_env, verbose=True, tensorboard_log=tensorboard_log,
+        #     **hyperparams, policy_kwargs=policy_kwargs
+        # )
+
         if index != None:
             self.index = index
         else:
@@ -153,7 +189,7 @@ class Vessel():
             #if self.rng is None:
             self.seed()
             nwaypoints = int(np.floor(4*self.rng.rand() + 2))
-            self.path = RandomCurveThroughOrigin(nwaypoints, length=200)
+            self.path = RandomCurveThroughOrigin(nwaypoints, length=800)
 
             # Initializing vessel
             init_loc = self.path(0)
@@ -175,7 +211,7 @@ class Vessel():
         ]
         self.static = False
         self.valid = True
-
+        self.agent = None
 
         # Initializing attributes
         self.n_sectors = self.config["n_sectors"]
@@ -229,7 +265,6 @@ class Vessel():
 
         # Initializing vessel to initial position
         self.reset(init_pos)
-        self.calculate_boundary()
 
     def reset(self, init_pos, init_speed=None):
         if init_speed is None:
@@ -240,6 +275,7 @@ class Vessel():
         self.prev_states = np.vstack([self._state])
         self.input = [0, 0]
         self.collision = False
+        self.progress = None
         self.prev_inputs =np.vstack([self.input])
         self.smoothed_torque_change = 0
         self.smoothed_torque = 0
@@ -255,11 +291,14 @@ class Vessel():
         self._perceive_counter = 0
         self._nearby_obstacles = []
 
+        self.calculate_boundary()
+
     def seed(self, seed=None):
         self.rng, seed = seeding.np_random(seed)
         return [seed]
 
     def step(self, action):
+        #print(f'In STEP in VESSEL {self.index}')
         """
         Steps the vessel one step forward
 
@@ -285,6 +324,10 @@ class Vessel():
         self._step_counter += 1
 
         self.calculate_boundary()
+
+        #print(f'New position of ship {self.index}: {self.position}')
+
+        #print(f'Exiting STEP in VESSEL {self.index}')
 
     def _state_dot(self, state):
         psi = state[2]
@@ -413,67 +456,105 @@ class Vessel():
         )[1]
 
         # Calculating tangential path direction at look-ahead point
-        look_ahead_path_direction = path.get_direction(vessel_arclength + self.config["look_ahead_distance"]*path.length)
-        look_ahead_course_error = float(geom.princip(look_ahead_path_direction - self.course))
+        target_arclength = vessel_arclength + self.config["look_ahead_distance"]
+        look_ahead_path_direction = path.get_direction(target_arclength)
+        look_ahead_heading_error = float(geom.princip(look_ahead_path_direction - self.heading))
 
         # Calculating vector difference between look-ahead point and vessel position
-        target_vector = path(vessel_arclength) - self.position
+        target_vector = path(target_arclength) - self.position
 
         # Calculating heading error
         target_heading = np.arctan2(target_vector[1], target_vector[0])
-        course_error = float(geom.princip(target_heading - self.course))
+        heading_error = float(geom.princip(target_heading - self.heading))
+
+        # Calculating path progress
+        progress = vessel_arclength/path.length
+        self.progress = progress
 
         # Concatenating states
         self.last_navi_state_dict = {
             'surge_velocity': self.velocity[0],
             'sway_velocity': self.velocity[1],
             'yaw_rate': self.yawrate,
-            'look_ahead_course_error': look_ahead_course_error,
-            'course_error': course_error,
-            'cross_track_error': cross_track_error/path.length,
+            'look_ahead_heading_error': look_ahead_heading_error,
+            'heading_error': heading_error,
+            'cross_track_error': cross_track_error/100,
             'target_heading': target_heading,
             'look_ahead_path_direction': look_ahead_path_direction,
-            'path_direction': path_direction
+            'path_direction': path_direction,
+            'vessel_arclength': vessel_arclength,
+            'target_arclength': target_arclength
         }
         navigation_states = np.array([self.last_navi_state_dict[state] for state in Vessel.NAVIGATION_STATES])
 
         # Deciding if vessel has reached the goal
         goal_distance = linalg.norm(path.end - self.position)
         reached_goal = goal_distance <= self.config["min_goal_distance"]
-
-        # Calculating path progress
-        progress = vessel_arclength/path.length
-
-
+        self.reached_goal = reached_goal
 
         return (navigation_states, reached_goal, progress)
 
+    def req_latest_data(self) -> dict:
+        """Returns dictionary containing the most recent perception and navigation
+        states."""
+        return {
+            'distance_measurements': self.last_sensor_dist_measurements,
+            'speed_measurements': self.last_sensor_speed_measurements,
+            'feasible_distances': self.last_sector_feasible_dists,
+            'navigation': self.last_navi_state_dict,
+            'collision' : self.collision,
+            'progress': self.progress,
+            'reached_goal': self.reached_goal
+        }
+
+
     def update(self, dt=None):
+        #print(f'In UPDATE in VESSEL {self.index}')
+
 
         navigation_states, reached_goal, progress = self.navigate(self.path)
         sector_closenesses, sector_velocities, sector_moving_obstacles, collision = self.perceive(self.obstacles)
 
         obs = np.concatenate([navigation_states, sector_closenesses, sector_velocities, sector_moving_obstacles])
 
-        directory = 'c:/users/amalih/onedrive - ntnu/github/logs/agents/MultiAgent-v0/'
-        latest_subdir = max([os.path.join(directory,d) for d in os.listdir(directory)], key=os.path.getmtime)
-        #print(f'Latest subdir: {latest_subdir}')
-        list_of_agents = glob.glob(f'{directory}{latest_subdir}/*.pkl')
-        try:
-            latest_agent = max(list_of_agents, key=os.path.getctime)
-            #print(f'Latest agent: {latest_agent}')
-            agent = model.load(directory+'/'+latest_subdir+'/'+latest_agent)
-            action, _states = agent.predict(obs, deterministic=True)
-            if not self._step_counter % 100:
-                print(f'Agent used: {latest_agent}')
-        except ValueError:
-            action = [0,0]
+        action = [0,0]
+
+        if not self._step_counter % 10_000:
+            directory = 'c:/users/amalih/onedrive - ntnu/github/logs/agents/MultiAgent-v0/'
+            latest_subdir = max([os.path.join(directory,d) for d in os.listdir(directory)], key=os.path.getmtime)
+
+            try:
+                latest_agent = max([os.path.join(latest_subdir,d) for d in os.listdir(latest_subdir)], key=os.path.getmtime)
+                #print(f'Latest agent: {latest_agent}')
+                self.agent = PPO2.load(latest_agent)
+                # params = agent.get_parameters()
+                # policy_weights = [
+                #     params['model/pi_fc0/w:0'],
+                #     params['model/pi_fc1/w:0'],
+                #     params['model/pi/w:0']
+                # ]
+                # policy_biases = [
+                #     params['model/pi_fc0/b:0'],
+                #     params['model/pi_fc1/b:0'],
+                #     params['model/pi/b:0']
+                # ]
+            except ValueError:
+
+                print(f'No agent used')
+
+
+        if self.agent:
+            #print('Agent used')
+            action, _states = self.agent.predict(obs, deterministic=True)
+            #print(f'Action: {action}')
 
 
         self.step(action)
+        #print(f'Exiting UPDATE in VESSEL {self.index}')
 
 
     def calculate_boundary(self):
+        #print(f'In CB in VESSEL {self.index}')
         ship_angle = self.heading# float(geom.princip(self.heading))
 
         boundary_temp = shapely.geometry.Polygon(self.points)
@@ -481,6 +562,7 @@ class Vessel():
         boundary_temp = shapely.affinity.translate(boundary_temp, xoff=self.position[0], yoff=self.position[1])
 
         self.boundary = boundary_temp
+
 
     @property
     def position(self):

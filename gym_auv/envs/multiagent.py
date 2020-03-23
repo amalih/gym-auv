@@ -13,6 +13,7 @@ from gym_auv.objects.rewarder import MultiRewarder
 import gym_auv.rendering.render2d as render2d
 import gym_auv.rendering.render3d as render3d
 
+
 import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -55,7 +56,7 @@ class MultiAgent(ASV_Scenario):
         self.total_t_steps = 0
         self.t_step = 0
         self.history = []
-        self.rewarder = MultiRewarder()
+
 
         # Declaring attributes
         #self.obstacles = None
@@ -99,31 +100,26 @@ class MultiAgent(ASV_Scenario):
     def obstacles(self):
         return self.vessel.obstacles
 
-    def observe(self):
-        navigation_states, reached_goal, progress = self.vessel.navigate(self.path)
-        sector_closenesses, sector_velocities, sector_moving_obstacles, collision = self.vessel.perceive(self.obstacles)
-
-        obs = np.concatenate([navigation_states, sector_closenesses, sector_velocities, sector_moving_obstacles])
-        return (obs, collision, reached_goal, progress)
-
     def _generate(self):
+
+        print('In GENERATE in MA')
 
         self.vessel = Vessel(self.config, width=self.config["vessel_width"])
         prog = 0
         self.path_prog_hist = np.array([prog])
         self.max_path_prog = prog
-
+        self.rewarder = MultiRewarder(self.vessel)
 
         print(f'Ownship created!')
         self.moving_obstacles = [self.vessel]
         self.static_obstacles = []
 
-        # Adding static obstacles
-        #for _ in range(20):
-        #    obstacle = CircularObstacle(*helpers.generate_obstacle(self.rng, self.vessel.path, self.vessel))
-        #    self.static_obstacles.append(obstacle)
+        #Adding static obstacles
+        for _ in range(8):
+           obstacle = CircularObstacle(*helpers.generate_obstacle(self.rng, self.vessel.path, self.vessel))
+           self.static_obstacles.append(obstacle)
 
-        # Adding moving obstacles (ships)
+        #Adding moving obstacles (ships)
         for i in range(1,10):
             #obst_speed = np.random.random()
             ship = Vessel(self.config, width=self.config["vessel_width"], index=i)
@@ -138,4 +134,31 @@ class MultiAgent(ASV_Scenario):
         for ship in self.moving_obstacles:
             print(f'{ship.index} - Collision: {ship.collision}')
 
-        self._update()
+        #self._update()
+
+        print('Exiting GENERATE in MA')
+
+    def _update(self):
+        #print('In UPDATE in MA')
+        dt = self.config["t_step_size"]
+        #print(f'Moving obstacles: {[x.index for x in self.moving_obstacles]}')
+        [obst.update(dt) for obst in self.moving_obstacles if obst.index != 0]
+        valid_ships = []
+        for ship in self.moving_obstacles:
+            if not ship.collision:
+                valid_ships.append(ship)
+
+        self.moving_obstacles = valid_ships
+
+        for ship in self.moving_obstacles:
+            other_ships = [x for x in self.moving_obstacles if x.index != ship.index]
+            #ship.obstacles.extend(other_ships)
+            ship.obstacles = np.hstack([self.static_obstacles, other_ships])
+        #print('Exiting UPDATE in MA')
+
+    def observe(self):
+        navigation_states, reached_goal, progress = self.vessel.navigate(self.path)
+        sector_closenesses, sector_velocities, sector_moving_obstacles, collision = self.vessel.perceive(self.obstacles)
+
+        obs = np.concatenate([navigation_states, sector_closenesses, sector_velocities, sector_moving_obstacles])
+        return (obs, collision, reached_goal, progress)

@@ -60,7 +60,7 @@ def make_mp_env(env_id, rank, envconfig, seed=0, pilot=None):
 def play_scenario(env, recorded_env, args, agent=None):
     # if args.video:
     #     print('Recording enabled')
-    #     recorded_env = VecVideoRecorder(env, args.video_dir, record_video_trigger=lambda x: x == 0, 
+    #     recorded_env = VecVideoRecorder(env, args.video_dir, record_video_trigger=lambda x: x == 0,
     #         video_length=args.video_length, name_prefix=args.video_name
     #     )
 
@@ -177,7 +177,7 @@ def play_scenario(env, recorded_env, args, agent=None):
 
                 if quit: raise KeyboardInterrupt
                 if done or restart: break
-            
+
             env.reset()
             gym_auv.reporting.report(env, report_dir='../logs/play_results/')
 
@@ -190,7 +190,7 @@ def main(args):
     custom_envconfig = _preprocess_custom_envconfig(args.envconfig) if args.envconfig is not None else {}
     env_id = 'gym_auv:' + args.env
     env_name = env_id.split(':')[-1] if ':' in env_id else env_id
-    envconfig = gym_auv.SCENARIOS[env_name]['config'] if env_name in gym_auv.SCENARIOS else {}  
+    envconfig = gym_auv.SCENARIOS[env_name]['config'] if env_name in gym_auv.SCENARIOS else {}
     envconfig.update(custom_envconfig)
 
     NUM_CPU = 8
@@ -215,7 +215,7 @@ def main(args):
         if args.scenario:
             env.load(args.scenario)
         vec_env = DummyVecEnv([lambda: env])
-        recorded_env = VecVideoRecorder(vec_env, args.video_dir, record_video_trigger=lambda x: x == 0, 
+        recorded_env = VecVideoRecorder(vec_env, args.video_dir, record_video_trigger=lambda x: x == 0,
             video_length=args.video_length, name_prefix=args.video_name
         )
         play_scenario(env, recorded_env, args, agent=agent)
@@ -236,13 +236,13 @@ def main(args):
         # ]
         # for param in params:
         #     print(param, params[param].shape)
-        
+
 
         env = create_env(env_id, envconfig, test_mode=True, render_mode=args.render, pilot=args.pilot)
         if (args.scenario):
             env.load(args.scenario)
         vec_env = DummyVecEnv([lambda: env])
-        recorded_env = VecVideoRecorder(vec_env, args.video_dir, record_video_trigger=lambda x: x==0 or x%1000 == 0, 
+        recorded_env = VecVideoRecorder(vec_env, args.video_dir, record_video_trigger=lambda x: x==0 or x%1000 == 0,
             video_length=args.video_length, name_prefix=(args.env if args.video_name == 'auto' else args.video_name)
         )
         obs = recorded_env.reset()
@@ -278,7 +278,10 @@ def main(args):
             vec_env = DummyVecEnv([lambda: create_env(env_id, envconfig, pilot=args.pilot)])
         else:
             num_cpu = NUM_CPU
-            vec_env = SubprocVecEnv([make_mp_env(env_id, i, envconfig, pilot=args.pilot) for i in range(num_cpu)]) 
+            vec_env = SubprocVecEnv([make_mp_env(env_id, i, envconfig, pilot=args.pilot) for i in range(num_cpu)])
+
+            #n_envs = envconfig['n_ships']
+            #vec_env = SubprocVecEnv([make_mp_env(env_id, i, envconfig, pilot=args.pilot) for i in range(n_envs)])
 
         if (args.agent is not None):
             agent = model.load(args.agent)
@@ -309,8 +312,8 @@ def main(args):
                             net_arch=[256, 256, 'lstm', dict(vf=[64], pi=[64])],
                             **_kwargs)
 
-                    agent = PPO2(CustomLSTMPolicy, 
-                        vec_env, verbose=True, tensorboard_log=tensorboard_log, 
+                    agent = PPO2(CustomLSTMPolicy,
+                        vec_env, verbose=True, tensorboard_log=tensorboard_log,
                         **hyperparams
                     )
                 else:
@@ -336,8 +339,8 @@ def main(args):
                     #layers = [256, 128, 64, 32, 16, 8]
                     layers = [64, 64]
                     policy_kwargs = dict(net_arch = [dict(vf=layers, pi=layers)])
-                    agent = PPO2(MlpPolicy, 
-                        vec_env, verbose=True, tensorboard_log=tensorboard_log, 
+                    agent = PPO2(MlpPolicy,
+                        vec_env, verbose=True, tensorboard_log=tensorboard_log,
                         **hyperparams, policy_kwargs=policy_kwargs
                     )
             elif (model == DDPG):
@@ -351,12 +354,12 @@ def main(args):
                     'batch_size': 256,
                     'param_noise': AdaptiveParamNoiseSpec(initial_stddev=0.287, desired_action_stddev=0.287)
                 }
-                agent = DDPG(LnMlpPolicy, 
+                agent = DDPG(LnMlpPolicy,
                     vec_env, verbose=True, tensorboard_log=tensorboard_log, **hyperparams
                 )
             elif (model == TD3):
                 action_noise = NormalActionNoise(mean=np.zeros(2), sigma=0.1*np.ones(2))
-                agent = TD3(stable_baselines.td3.MlpPolicy, 
+                agent = TD3(stable_baselines.td3.MlpPolicy,
                     vec_env, verbose=True, tensorboard_log=tensorboard_log, action_noise=action_noise
                 )
             elif model == A2C:
@@ -368,8 +371,8 @@ def main(args):
                 }
                 layers = [64, 64]
                 policy_kwargs = dict(net_arch = [dict(vf=layers, pi=layers)])
-                agent = A2C(MlpPolicy, 
-                    vec_env, verbose=True, tensorboard_log=tensorboard_log, 
+                agent = A2C(MlpPolicy,
+                    vec_env, verbose=True, tensorboard_log=tensorboard_log,
                     **hyperparams, policy_kwargs=policy_kwargs
                 )
             elif model == ACER:
@@ -439,21 +442,21 @@ def main(args):
             if recording_criteria:
                 if (args.pilot):
                     cmd = 'python run.py enjoy {} --agent "{}" --video-dir "{}" --video-name "{}" --video-length {} --algo {} --pilot {} --envconfig {}{}'.format(
-                        args.env, agent_filepath, video_folder, args.env + '-' + str(total_t_steps), video_length, args.algo, args.pilot, envconfig_string, 
+                        args.env, agent_filepath, video_folder, args.env + '-' + str(total_t_steps), video_length, args.algo, args.pilot, envconfig_string,
                         ' --recurrent' if args.recurrent else ''
                     )
                 else:
                     cmd = 'python run.py enjoy {} --agent "{}" --video-dir "{}" --video-name "{}" --video-length {} --algo {} --envconfig {}{}'.format(
-                        args.env, agent_filepath, video_folder, args.env + '-' + str(total_t_steps), video_length, args.algo, envconfig_string, 
+                        args.env, agent_filepath, video_folder, args.env + '-' + str(total_t_steps), video_length, args.algo, envconfig_string,
                         ' --recurrent' if args.recurrent else ''
                     )
                 subprocess.Popen(cmd)
-        
+
             n_episodes = report_env.episode
             n_updates += 1
-        
+
         agent.learn(
-            total_timesteps=10000000, 
+            total_timesteps=10000000,
             tb_log_name='log',
             callback=callback
         )
@@ -473,7 +476,7 @@ def main(args):
                 valuedict_str = '_'.join((key + '-' + str(val) for key, val in valuedict.items()))
 
                 print('Running {} test for {}...'.format(args.mode, valuedict_str))
-                
+
                 if args.mode == 'policyplot':
                     gym_auv.reporting.plot_actions(env, agent, fig_dir=figure_folder, fig_prefix=valuedict_str)
                 elif args.mode == 'vectorfieldplot':
@@ -510,7 +513,7 @@ def main(args):
             env = create_env(env_id, envconfig, test_mode=True, render_mode=args.render if args.video else None, pilot=args.pilot)
             vec_env = DummyVecEnv([lambda: env])
             if args.video:
-                recorded_env = VecVideoRecorder(vec_env, args.video_dir, record_video_trigger=lambda x: x == 0, 
+                recorded_env = VecVideoRecorder(vec_env, args.video_dir, record_video_trigger=lambda x: x == 0,
                 video_length=args.video_length, name_prefix=args.video_name
             )
             active_env = recorded_env if args.video else vec_env
@@ -526,7 +529,7 @@ def main(args):
                 obs = active_env.reset()
                 env.load(args.scenario)
                 print('Loaded', args.scenario)
-            else: 
+            else:
                 env, active_env = create_test_env()
                 if reset:
                     obs = active_env.reset()
@@ -568,7 +571,7 @@ def main(args):
         print('Testing scenario "{}" for {} episodes.\n '.format(args.env, args.episodes))
         report_msg_header = '{:<20}{:<20}{:<20}{:<20}{:<20}{:<20}{:<20}'.format('Episode', 'Timesteps', 'Cum. Reward', 'Progress', 'Collisions', 'CT-Error [m]', 'H-Error [deg]')
         print(report_msg_header)
-        print('-'*len(report_msg_header)) 
+        print('-'*len(report_msg_header))
 
         if args.testvals:
             testvals = json.load(open(args.testvals, 'r'))
@@ -584,7 +587,7 @@ def main(args):
                     valuedict_str = '_'.join((key + '-' + str(val) for key, val in valuedict.items()))
 
                     colorval = -np.log10(valuedict['reward_lambda']) #should be general
-                    
+
                     rep_subfolder = os.path.join(figure_folder, valuedict_str)
                     os.makedirs(rep_subfolder, exist_ok=True)
                     for episode in range(args.episodes):
@@ -608,14 +611,14 @@ def main(args):
                     valuedict_str = '_'.join((key + '-' + str(val) for key, val in valuedict.items()))
 
                     colorval = np.log10(valuedict['reward_lambda']) #should be general
-                    
+
                     rep_subfolder = os.path.join(figure_folder, valuedict_str)
                     os.makedirs(rep_subfolder, exist_ok=True)
                     for episode in range(args.episodes):
                          last_episode = run_test(valuedict_str + '_ep' + str(episode), report_dir=rep_subfolder)
                     episode_dict['Agent ' + str(agent_index)] = [last_episode, colorval]
                     agent_index += 1
-                
+
                 gym_auv.reporting.plot_last_episode(env, fig_dir=figure_folder, fig_prefix=(args.env + '_all_agents'), episode_dict=episode_dict)
             else:
                 env, active_env = create_test_env()
@@ -732,4 +735,3 @@ if __name__ == '__main__':
     except Exception as e:
         toaster.show_toast("run.py", "Program has crashed", duration=10)
         raise e
-    
