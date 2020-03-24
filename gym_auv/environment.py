@@ -171,31 +171,29 @@ class BaseEnvironment(gym.Env, ABC):
         Parameters
         ----------
         action : np.ndarray
-            [thrust_input, torque_input].
+        [thrust_input, torque_input].
 
         Returns
         -------
         obs : np.ndarray
-            Observation of the environment after action is performed.
+        Observation of the environment after action is performed.
         reward : double
-            The reward for performing action at his timestep.
+        The reward for performing action at his timestep.
         done : bool
-            If True the episode is ended, due to either a collision or having reached the goal position.
+        If True the episode is ended, due to either a collision or having reached the goal position.
         info : dict
-            Dictionary with data used for reporting or debugging
+        Dictionary with data used for reporting or debugging
         """
 
-        #print('In STEP in ENV')
-
-        #action[0] = (action[0] + 1)/2 # Done to be compatible with RL algorithms that require symmetric action spaces
+        action[0] = (action[0] + 1)/2 # Done to be compatible with RL algorithms that require symmetric action spaces
         if np.isnan(action).any(): action = np.zeros(action.shape)
-
-        # Updating vessel state from its dynamics model
-        self.vessel.step(action)
 
         # If the environment is dynamic, calling self.update will change it.
         self._update()
 
+        # Updating vessel state from its dynamics model
+        self.vessel.step(action)
+        
 
         # Getting observation vector
         obs = self.observe()

@@ -16,10 +16,7 @@ from stable_baselines import PPO2
 
 from gym_auv.objects.path import Path
 
-#from stable_baselines.common import set_global_seeds
-from stable_baselines.common.policies import MlpPolicy #, MlpLstmPolicy, MlpLnLstmPolicy
-#from stable_baselines.common.vec_env import VecVideoRecorder, DummyVecEnv, SubprocVecEnv
-#from stable_baselines.ddpg import AdaptiveParamNoiseSpec, NormalActionNoise, LnMlpPolicy
+from stable_baselines.common.policies import MlpPolicy
 from stable_baselines import PPO2
 
 import glob
@@ -46,6 +43,7 @@ def _odesolver45(f, y, h):
     s5 = f(y+439.0*h*s1/216.0-8.0*h*s2+3680.0*h*s3/513.0-845.0*h*s4/4104.0)
     s6 = f(y-8.0*h*s1/27.0+2*h*s2-3544.0*h*s3/2565+1859.0*h*s4/4104.0-11.0*h*s5/40.0)
     w = y + h*(25.0*s1/216.0+1408.0*s3/2565.0+2197.0*s4/4104.0-s5/5.0)
+
     q = y + h*(16.0*s1/135.0+6656.0*s3/12825.0+28561.0*s4/56430.0-9.0*s5/50.0+2.0*s6/55.0)
     return w, q
 
@@ -196,7 +194,7 @@ class Vessel():
         self._sector_obst_dynamic = [0]*self._n_sectors
         self._sensor_frequency = self.config["sensor_frequency"]
         if self.index != 0:
-            self._sensor_frequency *= 0.8
+            self._sensor_frequency *= 0.5
 
 
         self._width = width
@@ -247,73 +245,6 @@ class Vessel():
         # Initializing vessel to initial position
         self.reset(init_state)
 
-    @property
-    def width(self) -> float:
-        """Width of vessel in meters."""
-        return self._width
-
-    @property
-    def position(self) -> np.ndarray:
-        """Returns an array holding the position of the AUV in cartesian
-        coordinates."""
-        return self._state[0:2]
-
-    @property
-    def path_taken(self) -> np.ndarray:
-        """Returns an array holding the path of the AUV in cartesian
-        coordinates."""
-        return self._prev_states[:, 0:2]
-
-    @property
-    def heading(self) -> float:
-        """Returns the heading of the AUV with respect to true north."""
-        return self._state[2]
-
-    @property
-    def velocity(self) -> np.ndarray:
-        """Returns the surge and sway velocity of the AUV."""
-        return self._state[3:5]
-
-    @property
-    def speed(self) -> float:
-        """Returns the speed of the AUV."""
-        return linalg.norm(self.velocity)
-
-    @property
-    def yaw_rate(self) -> float:
-        """Returns the rate of rotation about the z-axis."""
-        return self._state[5]
-
-    @property
-    def max_speed(self) -> float:
-        """Returns the maximum speed of the AUV."""
-        return const.MAX_SPEED
-
-    @property
-    def boundary(self):
-        """Returns the boundary of the AUV."""
-        return self._boundary
-
-    @property
-    def course(self) -> float:
-        """Returns the course angle of the AUV with respect to true north."""
-        crab_angle = np.arctan2(self.velocity[1], self.velocity[0])
-        return self.heading + crab_angle
-
-    @property
-    def sensor_angles(self) -> np.ndarray:
-        """Array containg the angles each sensor ray relative to the vessel heading."""
-        return self._sensor_angles
-
-    @property
-    def sector_angles(self) -> np.ndarray:
-        """Array containg the angles of the center line of each sensor sector relative to the vessel heading."""
-        return self._sector_angles
-
-    @property
-    def sector_moving_measurements(self):
-        return self._sector_moving_measurements
-
     def reset(self, init_state:np.ndarray) -> None:
         """
         Resets the vessel to the specified initial state.
@@ -328,7 +259,7 @@ class Vessel():
         init_state = np.array(init_state, dtype=np.float64)
         init_speed = np.array(init_speed, dtype=np.float64)
 
-        self.collision = False
+        self._collision = False
         self.progress = None
         self.smoothed_torque_change = 0
         self.smoothed_torque = 0
@@ -344,8 +275,8 @@ class Vessel():
         self._last_sector_moving_measurements = np.zeros((self._n_sectors,))
         self._last_sector_feasible_dists = np.zeros((self._n_sectors,))
         self._last_navi_state_dict = dict((state, 0) for state in Vessel.NAVIGATION_FEATURES)
-        #self._collision = False
-        #self._progress = 0
+
+
         self._reached_goal = False
         self._step_counter = 0
         self._perceive_counter = 0
@@ -366,11 +297,18 @@ class Vessel():
         ----------
         action : np.ndarray[thrust_input, torque_input]
         """
-
+        #print('-----------------')
         self.input = np.array([self._thrust_surge(action[0]), self._moment_steer(action[1])])
+        #print(f'Action for vessel {self.index}: {action} -- Input: {self.input}')
+
+        #print(f'Position of vessel {self.index}: {self.position}')
+
         w, q = _odesolver45(self._state_dot, self._state, self.config["t_step_size"])
+        #print(f'Output of ODE45 for vessel {self.index}: {q}')
+
 
         self._state = q
+        #print(f'Position of vessel {self.index}: {self.position}')
         self._state[2] = geom.princip(self._state[2])
 
         self._prev_states = np.vstack([self._prev_states,self._state])
@@ -380,10 +318,6 @@ class Vessel():
 
 
         self._boundary = self.calculate_boundary()
-
-        #print(f'New position of ship {self.index}: {self.position}')
-
-        #print(f'Exiting STEP in VESSEL {self.index}')
 
     def _state_dot(self, state):
         psi = state[2]
@@ -407,7 +341,6 @@ class Vessel():
     def _moment_steer(self, steer):
         steer = np.clip(steer, -1, 1)
         return steer*const.MOMENT_MAX_AUV
-
 
     def perceive(self, obstacles:list) -> (np.ndarray, np.ndarray):
         """
@@ -561,7 +494,6 @@ class Vessel():
 
         return navigation_states
 
-
     def req_latest_data(self) -> dict:
         """Returns dictionary containing the most recent perception and navigation
         states."""
@@ -575,7 +507,6 @@ class Vessel():
             'reached_goal': self._reached_goal
         }
 
-
     def update(self, dt=None):
         #print(f'In UPDATE in VESSEL {self.index}')
 
@@ -585,9 +516,9 @@ class Vessel():
 
         obs = np.concatenate([navigation_states, sector_closenesses, sector_velocities, sector_moving_measurements])
 
-        action = [0,0]
 
-        if not self._step_counter % 10_000:
+
+        if not self._step_counter % 10_000 or not self.agent:
             directory = 'c:/users/amalih/onedrive - ntnu/github/logs/agents/MultiAgent-v0/'
             latest_subdir = max([os.path.join(directory,d) for d in os.listdir(directory)], key=os.path.getmtime)
 
@@ -607,19 +538,19 @@ class Vessel():
                 #     params['model/pi/b:0']
                 # ]
             except ValueError:
-
-                print(f'No agent used')
+                pass
+                #print(f'No agent used')
 
 
         if self.agent:
             #print('Agent used')
             action, _states = self.agent.predict(obs, deterministic=True)
             #print(f'Action: {action}')
+        else:
+            action = [0,0]
 
 
         self.step(action)
-        #print(f'Exiting UPDATE in VESSEL {self.index}')
-
 
     def calculate_boundary(self):
         #print(f'In CB in VESSEL {self.index}')
@@ -631,6 +562,9 @@ class Vessel():
 
         return boundary_temp
 
+    @property
+    def collision(self):
+        return self._collision
 
     @property
     def position(self):
@@ -657,21 +591,6 @@ class Vessel():
         return self._prev_states[-1, 0:2]
 
     @property
-    def path_taken(self):
-        """
-        Returns an array holding the path of the AUV in cartesian
-        coordinates.
-        """
-        return self._prev_states[:, 0:2]
-
-    @property
-    def heading(self):
-        """
-        Returns the heading of the AUV wrt true north.
-        """
-        return self._state[2]
-
-    @property
     def heading_history(self):
         """
         Returns the heading of the AUV wrt true north.
@@ -686,13 +605,6 @@ class Vessel():
         return geom.princip(self._prev_states[-1, 2] - self._prev_states[-2, 2]) if len(self._prev_states) >= 2 else self.heading
 
     @property
-    def velocity(self):
-        """
-        Returns the surge and sway velocity of the AUV.
-        """
-        return self._state[3:5]
-
-    @property
     def dx(self):
         return self._state[3]
 
@@ -700,39 +612,70 @@ class Vessel():
     def dy(self):
         return self._state[4]
 
+
     @property
-    def speed(self):
-        """
-        Returns the surge and sway velocity of the AUV.
-        """
+    def width(self) -> float:
+        """Width of vessel in meters."""
+        return self._width
+
+    @property
+    def position(self) -> np.ndarray:
+        """Returns an array holding the position of the AUV in cartesian
+        coordinates."""
+        return self._state[0:2]
+
+    @property
+    def path_taken(self) -> np.ndarray:
+        """Returns an array holding the path of the AUV in cartesian
+        coordinates."""
+        return self._prev_states[:, 0:2]
+
+    @property
+    def heading(self) -> float:
+        """Returns the heading of the AUV with respect to true north."""
+        return self._state[2]
+
+    @property
+    def velocity(self) -> np.ndarray:
+        """Returns the surge and sway velocity of the AUV."""
+        return self._state[3:5]
+
+    @property
+    def speed(self) -> float:
+        """Returns the speed of the AUV."""
         return linalg.norm(self.velocity)
 
-
-
-    def _state_dot(self, state):
-        psi = state[2]
-        nu = state[3:]
-
-        tau = np.array([self._input[0], 0, self._input[1]])
-
-        eta_dot = geom.Rzyx(0, 0, geom.princip(psi)).dot(nu)
-        nu_dot = const.M_inv.dot(
-            tau
-            #- const.D.dot(nu)
-            - const.N(nu).dot(nu)
-        )
-        state_dot = np.concatenate([eta_dot, nu_dot])
-        return state_dot
-
-    def _thrust_surge(self, surge):
-        surge = np.clip(surge, 0, 1)
-        return surge*const.THRUST_MAX_AUV
-
+    @property
+    def yaw_rate(self) -> float:
+        """Returns the rate of rotation about the z-axis."""
+        return self._state[5]
 
     @property
-    def course(self):
-        return self.heading + self.crab_angle
+    def max_speed(self) -> float:
+        """Returns the maximum speed of the AUV."""
+        return const.MAX_SPEED
 
-    def _moment_steer(self, steer):
-        steer = np.clip(steer, -1, 1)
-        return steer*const.MOMENT_MAX_AUV
+    @property
+    def boundary(self):
+        """Returns the boundary of the AUV."""
+        return self._boundary
+
+    @property
+    def course(self) -> float:
+        """Returns the course angle of the AUV with respect to true north."""
+        crab_angle = np.arctan2(self.velocity[1], self.velocity[0])
+        return self.heading + crab_angle
+
+    @property
+    def sensor_angles(self) -> np.ndarray:
+        """Array containg the angles each sensor ray relative to the vessel heading."""
+        return self._sensor_angles
+
+    @property
+    def sector_angles(self) -> np.ndarray:
+        """Array containg the angles of the center line of each sensor sector relative to the vessel heading."""
+        return self._sector_angles
+
+    @property
+    def sector_moving_measurements(self):
+        return self._sector_moving_measurements

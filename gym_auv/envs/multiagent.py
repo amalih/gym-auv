@@ -145,11 +145,69 @@ class MultiAgent(BaseEnvironment):
 
         print('Exiting GENERATE in MA')
 
+    def step(self, action:list) -> (np.ndarray, float, bool, dict):
+        """
+        Steps the environment by one timestep. Returns observation, reward, done, info.
+
+        Parameters
+        ----------
+        action : np.ndarray
+        [thrust_input, torque_input].
+
+        Returns
+        -------
+        obs : np.ndarray
+        Observation of the environment after action is performed.
+        reward : double
+        The reward for performing action at his timestep.
+        done : bool
+        If True the episode is ended, due to either a collision or having reached the goal position.
+        info : dict
+        Dictionary with data used for reporting or debugging
+        """
+
+        action[0] = (action[0] + 1)/2 # Done to be compatible with RL algorithms that require symmetric action spaces
+        if np.isnan(action).any(): action = np.zeros(action.shape)
+
+        [obst.update(self.config["t_step_size"]) for obst in self.moving_obstacles if obst.index != 0]
+
+
+        # Updating vessel state from its dynamics model
+        self.vessel.step(action)
+        #for ship in self.moving_obstacles:
+        #    print(f'Position for ship {ship.index}: {ship.position}')
+
+        # If the environment is dynamic, calling self.update will change it.
+        self._update()
+
+
+        # Getting observation vector
+        obs = self.observe()
+        vessel_data = self.vessel.req_latest_data()
+        self.collision = vessel_data['collision']
+        self.reached_goal = vessel_data['reached_goal']
+        self.progress = vessel_data['progress']
+
+        # Receiving agent's reward
+        reward = self.rewarder.calculate()
+        self.last_reward = reward
+        self.cumulative_reward += reward
+
+        info = {}
+        info['collision'] = self.collision
+        info['reached_goal'] = self.reached_goal
+        info['progress'] = self.progress
+
+        # Testing criteria for ending the episode
+        done = self._isdone()
+
+        self._save_latest_step()
+
+        self.t_step += 1
+
+        return (obs, reward, done, info)
+
     def _update(self):
-        #print('In UPDATE in MA')
-        dt = self.config["t_step_size"]
-        #print(f'Moving obstacles: {[x.index for x in self.moving_obstacles]}')
-        [obst.update(dt) for obst in self.moving_obstacles if obst.index != 0]
         valid_ships = []
         for ship in self.moving_obstacles:
             if not ship.collision:
