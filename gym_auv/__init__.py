@@ -18,6 +18,7 @@ DEFAULT_CONFIG = {
     "min_cumulative_reward": -2000,                 # Minimum cumulative reward received before episode ends
     "max_timesteps": 10000,                         # Maximum amount of timesteps before episode ends
     "min_goal_distance": 5,                         # Minimum aboslute distance to the goal position before episode ends
+    "min_path_progress": 0.99,                      # Minimum path progress before scenario is considered successful and the episode ended
 
     # ---- SIMULATION ---- #
     "t_step_size": 1.0,                             # Length of simulation timestep [s]
@@ -25,7 +26,7 @@ DEFAULT_CONFIG = {
 
     # ---- VESSEL ---- #
     "vessel_width": 4.0,                            # Width of vessel [m]
-    "look_ahead_distance": 0.1,                     # Path look-ahead distance for vessel as percentage of path length
+    "look_ahead_distance": 100,                     # Path look-ahead distance for vessel [m]
     "sensor_interval_load_obstacles": 25,           # Interval for loading nearby obstacles
     "n_sensors_per_sector": 15,                     # Number of rangefinder sensors within each sector
     "n_sectors": 9,                                 # Number of sensor sectors

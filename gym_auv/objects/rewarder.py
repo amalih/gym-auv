@@ -48,15 +48,15 @@ class BaseRewarder(ABC):
 class ColavRewarder(BaseRewarder):
     def __init__(self, vessel):
         super().__init__(vessel)
-        self.params['gamma_theta'] = 5
+        self.params['gamma_theta'] = 5.0
         self.params['gamma_x'] = 0.5
-        self.params['gamma_y_e'] = 0.05
+        self.params['gamma_y_e'] = 1.0
         self.params['penalty_yawrate'] = 1.0
-        self.params['penalty_torque_change'] = 2
+        self.params['penalty_torque_change'] = 2.0
         self.params['cruise_speed'] = 0.1
         self.params['neutral_speed'] = 0.1
-        self.params['negative_multiplier'] = 2
-        self.params['collision'] = -2000
+        self.params['negative_multiplier'] = 2.0
+        self.params['collision'] = -10000.0
         self.params['lambda'] =  _sample_lambda(scale=0.2)
         self.params['eta'] = _sample_eta()
 
@@ -67,7 +67,8 @@ class ColavRewarder(BaseRewarder):
         collision = latest_data['collision']
 
         if collision:
-            return self.params["collision"]*(1-self.params["lambda"])
+            reward = self.params["collision"]*(1-self.params["lambda"])
+            return reward
 
         reward = 0
 
@@ -183,8 +184,7 @@ class MultiRewarder(BaseRewarder):
             (1-self.params['lambda'])*closeness_reward - \
             living_penalty + \
             self.params["eta"]*self._vessel.speed/self._vessel.max_speed - \
-            self.params["penalty_yawrate"]*abs(self._vessel.yawrate) - \
-            self.params["penalty_torque_change"]*abs(self._vessel.smoothed_torque_change)
+            self.params["penalty_yawrate"]*abs(self._vessel.yaw_rate)
 
         if reward < 0:
             reward *= self.params['negative_multiplier']
