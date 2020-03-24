@@ -6,7 +6,7 @@ import gym_auv.utils.helpers as helpers
 from gym_auv.objects.vessel import Vessel
 from gym_auv.objects.path import RandomCurveThroughOrigin, Path
 from gym_auv.objects.obstacles import PolygonObstacle, VesselObstacle, CircularObstacle
-from gym_auv.environment import ASV_Scenario
+from gym_auv.environment import BaseEnvironment
 import shapely.geometry, shapely.errors
 from gym_auv.objects.rewarder import MultiRewarder
 
@@ -17,7 +17,7 @@ import gym_auv.rendering.render3d as render3d
 import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
-class MultiAgent(ASV_Scenario):
+class MultiAgent(BaseEnvironment):
 
     metadata = {
         'render.modes': ['human', 'rgb_array', 'state_pixels'],
@@ -50,7 +50,7 @@ class MultiAgent(ASV_Scenario):
         self.config = env_config
 
         # Setting dimension of observation vector
-        self.n_observations = len(Vessel.NAVIGATION_STATES) + 4*self.config["n_sectors"]
+        self.n_observations = len(Vessel.NAVIGATION_FEATURES) + 4*self.config["n_sectors"]
 
         self.episode = 0
         self.total_t_steps = 0
@@ -72,12 +72,12 @@ class MultiAgent(ASV_Scenario):
         self.rng = None
         self._tmp_storage = None
 
-        self.action_space = gym.spaces.Box(
+        self._action_space = gym.spaces.Box(
             low=np.array([-1, -1]),
             high=np.array([1, 1]),
             dtype=np.float32
         )
-        self.observation_space = gym.spaces.Box(
+        self._observation_space = gym.spaces.Box(
             low=np.array([-1]*self.n_observations),
             high=np.array([1]*self.n_observations),
             dtype=np.float32
@@ -90,6 +90,7 @@ class MultiAgent(ASV_Scenario):
             render2d.init_env_viewer(self)
         if self.render_mode == '3d' or self.render_mode == 'both':
             render3d.init_env_viewer(self, autocamera=self.config["autocamera3d"])
+
 
         self.reset()
 
@@ -120,13 +121,13 @@ class MultiAgent(ASV_Scenario):
         #   self.static_obstacles.append(obstacle)
 
         #Adding moving obstacles (ships)
-        for i in range(1,20):
+        for i in range(1,11):
             #obst_speed = np.random.random()
             ship = Vessel(self.config, width=self.config["vessel_width"], index=i)
             self.moving_obstacles.append(ship)
             print(f'Ship {i} has been created')
 
-        for i in range(1,5):
+        for i in range(11,15):
             #obst_speed = np.random.random()
             ship = Vessel(self.config, width=self.config["vessel_width"], index=i, path_length=600)
             self.moving_obstacles.append(ship)
@@ -163,8 +164,8 @@ class MultiAgent(ASV_Scenario):
         #print('Exiting UPDATE in MA')
 
     def observe(self):
-        navigation_states, reached_goal, progress = self.vessel.navigate(self.path)
-        sector_closenesses, sector_velocities, sector_moving_obstacles, collision = self.vessel.perceive(self.obstacles)
+        navigation_states = self.vessel.navigate(self.path)
+        sector_closenesses, sector_velocities, sector_moving_obstacles = self.vessel.perceive(self.obstacles)
 
         obs = np.concatenate([navigation_states, sector_closenesses, sector_velocities, sector_moving_obstacles])
-        return (obs, collision, reached_goal, progress)
+        return (obs)

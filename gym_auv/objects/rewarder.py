@@ -123,7 +123,7 @@ class MultiRewarder(BaseRewarder):
         self.params['cruise_speed'] = 0.1
         self.params['neutral_speed'] = 0.1
         self.params['negative_multiplier'] = 2
-        self.params['lambda'] =  0.6 #_sample_lambda(scale=0.2)
+        self.params['lambda'] =  0.5 #_sample_lambda(scale=0.2)
         self.params['eta'] = _sample_eta()
         self.params['collision'] = -2000
 
@@ -154,12 +154,12 @@ class MultiRewarder(BaseRewarder):
         # Calculating obstacle avoidance reward component
         closeness_penalty_num = 0
         closeness_penalty_den = 0
-        if self._vessel.n_sensors > 0:
-            for isector in range(self._vessel.n_sectors):
+        if self._vessel.config["n_sectors"] > 0:
+            for isector in range(self._vessel.config["n_sectors"]):
                 angle = self._vessel.sector_angles[isector]
                 x = feasible_distances[isector]
                 # If moving obstacle, we want to penalise head-on and starboard sections more
-                if self._vessel.sensor_obst_dynamic[isector] == True:
+                if self._vessel.sector_moving_measurements[isector] == True:
                     if angle > -5*np.pi/180 or angle < 112.5*np.pi/180:
                             weight = 1 / (1 + np.abs(self.params["gamma_theta"]*angle/2))
                     else:
@@ -167,7 +167,7 @@ class MultiRewarder(BaseRewarder):
                 # If static obstacle, penalise as before
                 else:
                     weight = 1 / (1 + np.abs(self.params["gamma_theta"]*angle))
-                raw_penalty = (self._vessel.sensor_range/max(x, 1))**self.params['gamma_x'] - 1
+                raw_penalty = (self._vessel.config["sensor_range"]/max(x, 1))**self.params['gamma_x'] - 1
                 weighted_penalty = weight*raw_penalty
                 closeness_penalty_num += weighted_penalty
                 closeness_penalty_den += weight

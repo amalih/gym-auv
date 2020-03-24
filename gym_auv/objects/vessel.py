@@ -134,7 +134,7 @@ class Vessel():
         'cross_track_error'
     ]
 
-    def __init__(self, config:dict, init_state:np.ndarray, width:float=4, index:int=None, path_length:float=800) -> None:
+    def __init__(self, config:dict, init_state:np.ndarray=None, width:float=4, index:int=None, path_length:float=800) -> None:
         """
         Initializes and resets the vessel.
 
@@ -163,7 +163,7 @@ class Vessel():
             #if self.rng is None:
             self.seed()
             nwaypoints = int(np.floor(4*self.rng.rand() + 2))
-            self.path = RandomCurveThroughOrigin(nwaypoints, length=path_length)
+            self.path = RandomCurveThroughOrigin(self.rng, nwaypoints, length=path_length)
 
             # Initializing vessel
             init_loc = self.path(0)
@@ -171,18 +171,11 @@ class Vessel():
             #init_loc[0] += 50*(self.rng.rand()-0.5)
             #init_loc[1] += 50*(self.rng.rand()-0.5)
             #init_angle = geom.princip(init_angle + 2*np.pi*(self.rng.rand()-0.5))
-            init_pos = np.hstack([init_loc, init_angle])
+            init_state = np.hstack([init_loc, init_angle])
+
 
 
         self.config = config
-        self.width = width
-        self.points = [
-            (-self.width/2, -self.width/2),
-            (-self.width/2, self.width/2),
-            (self.width/2, self.width/2),
-            (3/2*self.width, 0),
-            (self.width/2, -self.width/2),
-        ]
         self.static = False
         self.valid = True
         self.agent = None
@@ -200,10 +193,20 @@ class Vessel():
         self._sensor_internal_indeces = []
         self._sensor_interval = max(1, int(1/self.config["sensor_frequency"]))
         self._sensor_range = self.config["sensor_range"]
-        self._sensor_obst_dynamic = [0]*self.n_sectors
+        self._sector_obst_dynamic = [0]*self._n_sectors
         self._sensor_frequency = self.config["sensor_frequency"]
         if self.index != 0:
             self._sensor_frequency *= 0.8
+
+
+        self._width = width
+        self._points = [
+            (-self._width/2, -self._width/2),
+            (-self._width/2, self._width/2),
+            (self._width/2, self._width/2),
+            (3/2*self._width, 0),
+            (self._width/2, -self._width/2)
+            ]
 
         # Calculating sensor partitioning
         last_isector = -1
@@ -247,7 +250,7 @@ class Vessel():
     @property
     def width(self) -> float:
         """Width of vessel in meters."""
-        return self.width
+        return self._width
 
     @property
     def position(self) -> np.ndarray:
@@ -287,6 +290,11 @@ class Vessel():
         return const.MAX_SPEED
 
     @property
+    def boundary(self):
+        """Returns the boundary of the AUV."""
+        return self._boundary
+
+    @property
     def course(self) -> float:
         """Returns the course angle of the AUV with respect to true north."""
         crab_angle = np.arctan2(self.velocity[1], self.velocity[0])
@@ -301,6 +309,10 @@ class Vessel():
     def sector_angles(self) -> np.ndarray:
         """Array containg the angles of the center line of each sensor sector relative to the vessel heading."""
         return self._sector_angles
+
+    @property
+    def sector_moving_measurements(self):
+        return self._sector_moving_measurements
 
     def reset(self, init_state:np.ndarray) -> None:
         """
@@ -327,7 +339,9 @@ class Vessel():
         self._prev_inputs =np.vstack([self._input])
         self._last_sensor_dist_measurements = np.ones((self._n_sensors,))*self.config["sensor_range"]
         self._last_sensor_speed_measurements = np.zeros((self._n_sensors,2))
+        self._last_sensor_moving_measurements = np.zeros((self._n_sensors,))
         self._last_sector_dist_measurements = np.zeros((self._n_sectors,))
+        self._last_sector_moving_measurements = np.zeros((self._n_sectors,))
         self._last_sector_feasible_dists = np.zeros((self._n_sectors,))
         self._last_navi_state_dict = dict((state, 0) for state in Vessel.NAVIGATION_FEATURES)
         #self._collision = False
@@ -337,7 +351,7 @@ class Vessel():
         self._perceive_counter = 0
         self._nearby_obstacles = []
 
-        self.calculate_boundary()
+        self._boundary = self.calculate_boundary()
 
     def seed(self, seed=None):
         self.rng, seed = seeding.np_random(seed)
@@ -354,7 +368,7 @@ class Vessel():
         """
 
         self.input = np.array([self._thrust_surge(action[0]), self._moment_steer(action[1])])
-        w, q = odesolver45(self._state_dot, self._state, self.config["t_step_size"])
+        w, q = _odesolver45(self._state_dot, self._state, self.config["t_step_size"])
 
         self._state = q
         self._state[2] = geom.princip(self._state[2])
@@ -365,7 +379,7 @@ class Vessel():
         self._step_counter += 1
 
 
-        self.calculate_boundary()
+        self._boundary = self.calculate_boundary()
 
         #print(f'New position of ship {self.index}: {self.position}')
 
@@ -412,15 +426,15 @@ class Vessel():
         # Loading nearby obstacles, i.e. obstacles within the vessel's detection range
         if self._step_counter % self.config["sensor_interval_load_obstacles"] == 0:
             self._nearby_obstacles = list(filter(
-                lambda obst: float(p0_point.distance(obst.boundary)) - self.width < sensor_range, obstacles
+                lambda obst: float(p0_point.distance(obst.boundary)) - self._width < sensor_range, obstacles
             ))
 
         if not self._nearby_obstacles:
-            self.last_sensor_dist_measurements = np.ones((self.n_sensors,))*self._sensor_range
-            sector_feasible_distances = np.ones((self.n_sectors,))*self._sensor_range
-            sector_closenesses = np.zeros((self.n_sectors,))
-            sector_velocities = np.zeros((2*self.n_sectors,))
-            sector_moving_obstacles = np.zeros((self.n_sectors,))
+            self.last_sensor_dist_measurements = np.ones((self._n_sensors,))*self._sensor_range
+            sector_feasible_distances = np.ones((self._n_sectors,))*self._sensor_range
+            sector_closenesses = np.zeros((self._n_sectors,))
+            sector_velocities = np.zeros((2*self._n_sectors,))
+            sector_moving_measurements = np.zeros((self._n_sectors,))
 
             collision = False
 
@@ -433,30 +447,32 @@ class Vessel():
                 lambda i: _simulate_sensor(sensor_angles_ned[i], *sensor_sim_args) if activate_sensor(i) else (
 
                     self._last_sensor_dist_measurements[i],
-                    self._last_sensor_speed_measurements[i]
+                    self._last_sensor_speed_measurements[i],
+                    self._last_sensor_moving_measurements[i]
                 ),
                 range(self._n_sensors)
 
             ))
-            sensor_dist_measurements, sensor_speed_measurements, sensor_moving_obstacles = zip(*sensor_output_arrs)
-            sensor_moving_obstacles = np.array(sensor_moving_obstacles)
+            sensor_dist_measurements, sensor_speed_measurements, sensor_moving_measurements = zip(*sensor_output_arrs)
+            sensor_moving_measurements = np.array(sensor_moving_measurements)
             sensor_dist_measurements = np.array(sensor_dist_measurements)
             sensor_speed_measurements = np.array(sensor_speed_measurements)
             self._last_sensor_dist_measurements = sensor_dist_measurements
             self._last_sensor_speed_measurements = sensor_speed_measurements
+            self._last_sensor_moving_measurements = sensor_moving_measurements
 
             # Partitioning sensor readings into sectors
-            sector_moving_obstacles = np.split(sensor_moving_obstacles, self.sector_start_indeces[1:])
-            sector_dist_measurements = np.split(sensor_dist_measurements, self.sector_start_indeces[1:])
-            sector_speed_measurements = np.split(sensor_speed_measurements, self.sector_start_indeces[1:], axis=0)
+            sector_moving_measurements = np.split(sensor_moving_measurements, self._sector_start_indeces[1:])
+            sector_dist_measurements = np.split(sensor_dist_measurements, self._sector_start_indeces[1:])
+            sector_speed_measurements = np.split(sensor_speed_measurements, self._sector_start_indeces[1:], axis=0)
 
 
-            # Finding moving obstacles in sector
-            sector_moving_obstacles = [max(sector_moving_obstacles[x]) for x in range(len(sector_moving_obstacles))]
+            # Deciding whether there is a moving obstacle in sector
+            sector_moving_measurements = [max(sector_moving_measurements[x]) for x in range(len(sector_moving_measurements))]
 
             # Performing feasibility pooling
             sector_feasible_distances = np.array(list(
-                map(lambda x: _feasibility_pooling(x, self.width, self._d_sensor_angle), sector_dist_measurements)
+                map(lambda x: _feasibility_pooling(x, self._width, self._d_sensor_angle), sector_dist_measurements)
             ))
 
             # Calculating feasible closeness
@@ -470,17 +486,19 @@ class Vessel():
 
             # Testing if vessel has collided
             collision = any(
-                float(p0_point.distance(obst.boundary)) - 3*self.width <= 0 for obst in self._nearby_obstacles
+                float(p0_point.distance(obst.boundary)) - 3*self._width <= 0 for obst in self._nearby_obstacles
             )
 
-            #print(f'Ship {self.index} collided, nearby moving obstacles: {[x.index for x in self._nearby_obstacles if (not x.static and float(p0_point.distance(x.boundary)) - self.width <= 0)]}')
+            #print(f'Ship {self.index} collided, nearby moving obstacles: {[x.index for x in self._nearby_obstacles if (not x.static and float(p0_point.distance(x.boundary)) - self._width <= 0)]}')
 
-        self.last_sector_dist_measurements = sector_closenesses
-        self.last_sector_feasible_dists = sector_feasible_distances
+        self._last_sector_dist_measurements = sector_closenesses
+        self._last_sector_feasible_dists = sector_feasible_distances
+        self._last_sector_moving_measurements = sector_moving_measurements
         self._perceive_counter += 1
-        self.collision = collision
+        self._collision = collision
+        self._sector_moving_measurements = sector_moving_measurements
 
-        return (sector_closenesses, sector_velocities, sector_moving_obstacles, collision)
+        return (sector_closenesses, sector_velocities, sector_moving_measurements)
         #return (sector_closenesses, sector_velocities)
         #upstream/master
 
@@ -523,7 +541,6 @@ class Vessel():
         self._last_navi_state_dict = {
             'surge_velocity': self.velocity[0],
             'sway_velocity': self.velocity[1],
-            'yaw_rate': self.yawrate,
             'yaw_rate': self.yaw_rate,
             'look_ahead_heading_error': look_ahead_heading_error,
             'heading_error': heading_error,
@@ -549,13 +566,13 @@ class Vessel():
         """Returns dictionary containing the most recent perception and navigation
         states."""
         return {
-            'distance_measurements': self.last_sensor_dist_measurements,
-            'speed_measurements': self.last_sensor_speed_measurements,
-            'feasible_distances': self.last_sector_feasible_dists,
-            'navigation': self.last_navi_state_dict,
-            'collision' : self.collision,
-            'progress': self.progress,
-            'reached_goal': self.reached_goal
+            'distance_measurements': self._last_sensor_dist_measurements,
+            'speed_measurements': self._last_sensor_speed_measurements,
+            'feasible_distances': self._last_sector_feasible_dists,
+            'navigation': self._last_navi_state_dict,
+            'collision' : self._collision,
+            'progress': self._progress,
+            'reached_goal': self._reached_goal
         }
 
 
@@ -563,10 +580,10 @@ class Vessel():
         #print(f'In UPDATE in VESSEL {self.index}')
 
 
-        navigation_states, reached_goal, progress = self.navigate(self.path)
-        sector_closenesses, sector_velocities, sector_moving_obstacles, collision = self.perceive(self.obstacles)
+        navigation_states = self.navigate(self.path)
+        sector_closenesses, sector_velocities, sector_moving_measurements = self.perceive(self.obstacles)
 
-        obs = np.concatenate([navigation_states, sector_closenesses, sector_velocities, sector_moving_obstacles])
+        obs = np.concatenate([navigation_states, sector_closenesses, sector_velocities, sector_moving_measurements])
 
         action = [0,0]
 
@@ -608,11 +625,11 @@ class Vessel():
         #print(f'In CB in VESSEL {self.index}')
         ship_angle = self.heading# float(geom.princip(self.heading))
 
-        boundary_temp = shapely.geometry.Polygon(self.points)
+        boundary_temp = shapely.geometry.Polygon(self._points)
         boundary_temp = shapely.affinity.rotate(boundary_temp, ship_angle, use_radians=True, origin='centroid')
         boundary_temp = shapely.affinity.translate(boundary_temp, xoff=self.position[0], yoff=self.position[1])
 
-        self.boundary = boundary_temp
+        return boundary_temp
 
 
     @property
@@ -637,7 +654,7 @@ class Vessel():
         Returns an array holding the path of the AUV in cartesian
         coordinates.
         """
-        return self.prev_states[-1, 0:2]
+        return self._prev_states[-1, 0:2]
 
     @property
     def path_taken(self):
@@ -645,7 +662,7 @@ class Vessel():
         Returns an array holding the path of the AUV in cartesian
         coordinates.
         """
-        return self.prev_states[:, 0:2]
+        return self._prev_states[:, 0:2]
 
     @property
     def heading(self):
@@ -659,14 +676,14 @@ class Vessel():
         """
         Returns the heading of the AUV wrt true north.
         """
-        return self.prev_states[:, 2]
+        return self._prev_states[:, 2]
 
     @property
     def heading_change(self):
         """
         Returns the change of heading of the AUV wrt true north.
         """
-        return geom.princip(self.prev_states[-1, 2] - self.prev_states[-2, 2]) if len(self.prev_states) >= 2 else self.heading
+        return geom.princip(self._prev_states[-1, 2] - self._prev_states[-2, 2]) if len(self._prev_states) >= 2 else self.heading
 
     @property
     def velocity(self):

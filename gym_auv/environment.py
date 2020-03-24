@@ -75,8 +75,8 @@ class BaseEnvironment(gym.Env, ABC):
         )
 
         # Initializing rendering
-        self._viewer2d = None
-        self._viewer3d = None
+        self.viewer2d = None
+        self.viewer3d = None
         if self.render_mode == '2d' or self.render_mode == 'both':
             render2d.init_env_viewer(self)
         if self.render_mode == '3d' or self.render_mode == 'both':
@@ -136,7 +136,7 @@ class BaseEnvironment(gym.Env, ABC):
         # Initializing 3d viewer
         if self.render_mode == '3d':
             render3d.init_boat_model(self)
-            self._viewer3d.create_path(self.path)
+            self.viewer3d.create_path(self.path)
 
         # Getting initial observation vector
         obs = self.observe()
@@ -244,10 +244,10 @@ class BaseEnvironment(gym.Env, ABC):
 
     def close(self):
         """Closes the environment. To be called after usage."""
-        if self._viewer2d is not None:
-            self._viewer2d.close()
-        if self._viewer3d is not None:
-            self._viewer3d.close()
+        if self.viewer2d is not None:
+            self.viewer2d.close()
+        if self.viewer3d is not None:
+            self.viewer3d.close()
 
     def render(self, mode='human'):
         """Render one frame of the environment.

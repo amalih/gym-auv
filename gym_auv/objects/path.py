@@ -52,7 +52,7 @@ class Path():
         """
         Returns the (x,y) point corresponding to the
         specified arclength.
-        
+
         Returns
         -------
         point : np.array
@@ -63,7 +63,7 @@ class Path():
         """
         Returns the direction in radians with respect to the
         positive x-axis.
-        
+
         Returns
         -------
         direction : float
@@ -71,11 +71,11 @@ class Path():
         derivative = self._path_derivatives(arclength)
         return np.arctan2(derivative[1], derivative[0])
 
-    def get_closest_arclength(self, position:np.ndarray) -> float:  
+    def get_closest_arclength(self, position:np.ndarray) -> float:
         """
-        Returns the arc length value corresponding to the point 
+        Returns the arc length value corresponding to the point
         on the path which is closest to the specified position.
-        
+
         Returns
         -------
         point : np.array
