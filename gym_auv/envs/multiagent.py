@@ -121,13 +121,13 @@ class MultiAgent(BaseEnvironment):
         #   self.static_obstacles.append(obstacle)
 
         #Adding moving obstacles (ships)
-        for i in range(1,11):
+        for i in range(1,25):
             #obst_speed = np.random.random()
             ship = Vessel(self.config, width=self.config["vessel_width"], index=i)
             self.moving_obstacles.append(ship)
             print(f'Ship {i} has been created')
 
-        for i in range(11,15):
+        for i in range(26,31):
             #obst_speed = np.random.random()
             ship = Vessel(self.config, width=self.config["vessel_width"], index=i, path_length=600)
             self.moving_obstacles.append(ship)

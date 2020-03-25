@@ -15,8 +15,8 @@ def sector_partition_fun(env, isensor, c=0.1):
 
 DEFAULT_CONFIG = {
     # ---- EPISODE ---- #
-    "min_cumulative_reward": -2000,                 # Minimum cumulative reward received before episode ends
-    "max_timesteps": 10000,                         # Maximum amount of timesteps before episode ends
+    "min_cumulative_reward": -10000,                 # Minimum cumulative reward received before episode ends
+    "max_timesteps": 5000,                         # Maximum amount of timesteps before episode ends
     "min_goal_distance": 5,                         # Minimum aboslute distance to the goal position before episode ends
     "min_path_progress": 0.99,                      # Minimum path progress before scenario is considered successful and the episode ended
 

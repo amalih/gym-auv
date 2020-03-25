@@ -301,7 +301,7 @@ class Vessel():
         self.input = np.array([self._thrust_surge(action[0]), self._moment_steer(action[1])])
         #print(f'Action for vessel {self.index}: {action} -- Input: {self.input}')
 
-        #print(f'Position of vessel {self.index}: {self.position}')
+        print(f'Position of vessel {self.index}: {self.position}')
 
         w, q = _odesolver45(self._state_dot, self._state, self.config["t_step_size"])
         #print(f'Output of ODE45 for vessel {self.index}: {q}')
@@ -542,10 +542,11 @@ class Vessel():
                 #print(f'No agent used')
 
 
-        if self.agent:
+        if self.agent != None:
             #print('Agent used')
             action, _states = self.agent.predict(obs, deterministic=True)
             #print(f'Action: {action}')
+            action[0] = (action[0] + 1)/2
         else:
             action = [0,0]
 
