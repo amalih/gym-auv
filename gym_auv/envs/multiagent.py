@@ -61,6 +61,7 @@ class MultiAgent(BaseEnvironment):
         # Declaring attributes
         #self.obstacles = None
         self.vessel = None
+
         #self.path = None
 
         self.reached_goal = None
@@ -120,28 +121,22 @@ class MultiAgent(BaseEnvironment):
         #   obstacle = CircularObstacle(*helpers.generate_obstacle(self.rng, self.vessel.path, self.vessel))
         #   self.static_obstacles.append(obstacle)
 
+        self._vessel_count = 1
         #Adding moving obstacles (ships)
-        for i in range(1,25):
+        curr_vessel_count = self._vessel_count
+        for i in range(curr_vessel_count ,curr_vessel_count+6):
             #obst_speed = np.random.random()
-            ship = Vessel(self.config, width=self.config["vessel_width"], index=i)
+            ship = Vessel(self.config, width=self.config["vessel_width"], index=i, vessel_pos=self.vessel.position)
             self.moving_obstacles.append(ship)
             print(f'Ship {i} has been created')
+            self._vessel_count += 1
 
-        for i in range(26,31):
-            #obst_speed = np.random.random()
-            ship = Vessel(self.config, width=self.config["vessel_width"], index=i, path_length=600)
-            self.moving_obstacles.append(ship)
-            print(f'Ship {i} has been created')
 
         for ship in self.moving_obstacles:
             other_ships = [x for x in self.moving_obstacles if x.index != ship.index]
             #ship.obstacles.extend(other_ships)
             ship.obstacles = np.hstack([self.static_obstacles, other_ships])
 
-        for ship in self.moving_obstacles:
-            print(f'{ship.index} - Collision: {ship.collision}')
-
-        #self._update()
 
         print('Exiting GENERATE in MA')
 
@@ -166,19 +161,13 @@ class MultiAgent(BaseEnvironment):
         Dictionary with data used for reporting or debugging
         """
 
-        action[0] = (action[0] + 1)/2 # Done to be compatible with RL algorithms that require symmetric action spaces
-        if np.isnan(action).any(): action = np.zeros(action.shape)
 
         [obst.update(self.config["t_step_size"]) for obst in self.moving_obstacles if obst.index != 0]
 
 
-        # Updating vessel state from its dynamics model
+        action[0] = (action[0] + 1)/2 # Done to be compatible with RL algorithms that require symmetric action spaces
+        if np.isnan(action).any(): action = np.zeros(action.shape)
         self.vessel.step(action)
-        #for ship in self.moving_obstacles:
-        #    print(f'Position for ship {ship.index}: {ship.position}')
-
-        # If the environment is dynamic, calling self.update will change it.
-        self._update()
 
 
         # Getting observation vector
@@ -202,8 +191,26 @@ class MultiAgent(BaseEnvironment):
         done = self._isdone()
 
         self._save_latest_step()
+        # If the environment is dynamic, calling self.update will change it.
+        self._update()
 
         self.t_step += 1
+
+        #Adding moving obstacles (ships)
+        if not self.t_step % 50:
+            curr_vessel_count = self._vessel_count
+            for i in range(curr_vessel_count ,curr_vessel_count+2):
+                #obst_speed = np.random.random()
+                ship = Vessel(self.config, width=self.config["vessel_width"], index=i, vessel_pos=self.vessel.position)
+                self.moving_obstacles.append(ship)
+                print(f'Ship {i} has been created')
+                self._vessel_count += 1
+
+
+            for ship in self.moving_obstacles:
+                other_ships = [x for x in self.moving_obstacles if x.index != ship.index]
+                #ship.obstacles.extend(other_ships)
+                ship.obstacles = np.hstack([self.static_obstacles, other_ships])
 
         return (obs, reward, done, info)
 

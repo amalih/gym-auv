@@ -8,10 +8,13 @@ def return_true_fun(t, dist):
     return True
 
 def sector_partition_fun(env, isensor, c=0.1):
-    a = env.config["n_sensors_per_sector"]*env.config["n_sectors"]
-    b = env.config["n_sectors"]
-    sigma = lambda x: b / (1 + np.exp((-x + a / 2) / (c * a)))
-    return int(np.floor(sigma(isensor) - sigma(0)))
+    #a = env.config["n_sensors_per_sector"]*env.config["n_sectors"]
+    #b = env.config["n_sectors"]
+    d = env.config["n_sensors_per_sector"]
+    #sigma = lambda x: b / (1 + np.exp((-x + a / 2) / (c * a)))
+    sigma = lambda x: x/d
+    #return int(np.floor(sigma(isensor) - sigma(0)))
+    return int(np.floor(sigma(isensor)))
 
 DEFAULT_CONFIG = {
     # ---- EPISODE ---- #
@@ -26,10 +29,10 @@ DEFAULT_CONFIG = {
 
     # ---- VESSEL ---- #
     "vessel_width": 4.0,                            # Width of vessel [m]
-    "look_ahead_distance": 100,                     # Path look-ahead distance for vessel [m]
+    "look_ahead_distance": 50,                     # Path look-ahead distance for vessel [m]
     "sensor_interval_load_obstacles": 25,           # Interval for loading nearby obstacles
     "n_sensors_per_sector": 15,                     # Number of rangefinder sensors within each sector
-    "n_sectors": 9,                                 # Number of sensor sectors
+    "n_sectors": 10,                                 # Number of sensor sectors
     "sector_partition_fun": sector_partition_fun,   # Function that returns corresponding sector for a given sensor index
     "sensor_rotation": False,                       # Whether to activate the sectors in a rotating pattern (for performance reasons)
     "sensor_range": 100.0,                            # Range of rangefinder sensors [m]

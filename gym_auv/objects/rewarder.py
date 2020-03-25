@@ -139,7 +139,7 @@ class MultiRewarder(BaseRewarder):
         collision = latest_data['collision']
 
         if collision:
-            return self.params["collision"]*(1-self.params["lambda"])
+            return self.params["collision"] #*(1-self.params["lambda"])
 
         reward = 0
 
@@ -160,10 +160,11 @@ class MultiRewarder(BaseRewarder):
                 x = feasible_distances[isector]
                 # If moving obstacle, we want to penalise head-on and starboard sections more
                 if self._vessel.sector_moving_measurements[isector] == True:
+                    #print(self._vessel.sector_moving_measurements)
                     if angle > -5*np.pi/180 or angle < 112.5*np.pi/180:
-                            weight = 1 / (1 + np.abs(self.params["gamma_theta"]*angle/2))
+                            weight = 4 / (1 + np.abs(self.params["gamma_theta"]*angle))
                     else:
-                        weight = 1 / (1 + np.abs(self.params["gamma_theta"]*angle))
+                        weight = 2 / (1 + np.abs(self.params["gamma_theta"]*angle))
                 # If static obstacle, penalise as before
                 else:
                     weight = 1 / (1 + np.abs(self.params["gamma_theta"]*angle))

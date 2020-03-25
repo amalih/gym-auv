@@ -6,7 +6,7 @@ import numpy.linalg as linalg
 from itertools import islice, chain, repeat
 import shapely.geometry, shapely.errors, shapely.strtree, shapely.ops, shapely.prepared
 
-from gym_auv.objects.path import RandomCurveThroughOrigin, Path
+from gym_auv.objects.path import RandomCurveThroughOrigin, Path, RandomCurveFromEdge
 import gym_auv.utils.constants as const
 import gym_auv.utils.geomutils as geom
 from gym_auv.objects.obstacles import *
@@ -61,6 +61,10 @@ def _feasibility_pooling(x, width, theta):
     N_sensors = x.shape[0]
     sort_idx = np.argsort(x)
     for idx in sort_idx:
+        #if self.sensor_moving_measurements[idx]:
+        #    required_width = 2*width
+        #else:
+        #    required_width = width
         surviving = x > x[idx] + width
         d = x[idx]*theta
         opening_width = 0
@@ -132,7 +136,7 @@ class Vessel():
         'cross_track_error'
     ]
 
-    def __init__(self, config:dict, init_state:np.ndarray=None, width:float=4, index:int=None, path_length:float=800) -> None:
+    def __init__(self, config:dict, init_state:np.ndarray=None, width:float=4, index:int=None, path_length:float=800, vessel_pos=None) -> None:
         """
         Initializes and resets the vessel.
 
@@ -161,7 +165,11 @@ class Vessel():
             #if self.rng is None:
             self.seed()
             nwaypoints = int(np.floor(4*self.rng.rand() + 2))
-            self.path = RandomCurveThroughOrigin(self.rng, nwaypoints, length=path_length)
+            if vessel_pos is None:
+                self.path = RandomCurveThroughOrigin(self.rng, nwaypoints, length=path_length)
+            else:
+
+                self.path = RandomCurveFromEdge(self.rng, nwaypoints, vessel_pos)
 
             # Initializing vessel
             init_loc = self.path(0)
@@ -177,6 +185,7 @@ class Vessel():
         self.static = False
         self.valid = True
         self.agent = None
+        self.reachable = False
 
 
         # Initializing private attributes
@@ -226,6 +235,8 @@ class Vessel():
             self._n_sensors_per_sector[isector] += 1
         self._sector_angles.append(tmp_sector_angle_sum/tmp_sector_sensor_count)
         self._sector_angles = np.array(self._sector_angles)
+        #print(self._sector_angles)
+
 
         for isensor in range(self._n_sensors):
             isector = self.config["sector_partition_fun"](self, isensor)
@@ -297,26 +308,16 @@ class Vessel():
         ----------
         action : np.ndarray[thrust_input, torque_input]
         """
-        #print('-----------------')
         self.input = np.array([self._thrust_surge(action[0]), self._moment_steer(action[1])])
-        #print(f'Action for vessel {self.index}: {action} -- Input: {self.input}')
-
-        print(f'Position of vessel {self.index}: {self.position}')
-
         w, q = _odesolver45(self._state_dot, self._state, self.config["t_step_size"])
-        #print(f'Output of ODE45 for vessel {self.index}: {q}')
-
 
         self._state = q
-        #print(f'Position of vessel {self.index}: {self.position}')
         self._state[2] = geom.princip(self._state[2])
 
         self._prev_states = np.vstack([self._prev_states,self._state])
         self._prev_inputs = np.vstack([self._prev_inputs,self._input])
 
         self._step_counter += 1
-
-
         self._boundary = self.calculate_boundary()
 
     def _state_dot(self, state):
@@ -363,6 +364,9 @@ class Vessel():
             ))
 
         if not self._nearby_obstacles:
+            if self.index == 0:
+                for ship in self.obstacles:
+                    ship.reachable = False
             self.last_sensor_dist_measurements = np.ones((self._n_sensors,))*self._sensor_range
             sector_feasible_distances = np.ones((self._n_sectors,))*self._sensor_range
             sector_closenesses = np.zeros((self._n_sectors,))
@@ -372,6 +376,11 @@ class Vessel():
             collision = False
 
         else:
+            if self.index == 0:
+                for ship in self._nearby_obstacles:
+                    ship.reachable = True
+                else:
+                    ship.reachable = False
             # Simulating all sensors using _simulate_sensor subroutine
             sensor_angles_ned = self._sensor_angles + self.heading
             activate_sensor = lambda i: (i % self._sensor_interval) == (self._perceive_counter % self._sensor_interval)
@@ -405,7 +414,7 @@ class Vessel():
 
             # Performing feasibility pooling
             sector_feasible_distances = np.array(list(
-                map(lambda x: _feasibility_pooling(x, self._width, self._d_sensor_angle), sector_dist_measurements)
+                map(lambda x: _feasibility_pooling(x, 3*self._width, self._d_sensor_angle), sector_dist_measurements)
             ))
 
             # Calculating feasible closeness
@@ -428,7 +437,8 @@ class Vessel():
         self._last_sector_feasible_dists = sector_feasible_distances
         self._last_sector_moving_measurements = sector_moving_measurements
         self._perceive_counter += 1
-        self._collision = collision
+        if self.index == 0:
+            self._collision = collision
         self._sector_moving_measurements = sector_moving_measurements
 
         return (sector_closenesses, sector_velocities, sector_moving_measurements)
@@ -507,16 +517,42 @@ class Vessel():
             'reached_goal': self._reached_goal
         }
 
-    def update(self, dt=None):
-        #print(f'In UPDATE in VESSEL {self.index}')
+    def update(self,dt=1):
+        if self.reachable:
+            self.update_with_agent()
+        else:
+            self.update_without_agent()
 
+    def update_without_agent(self, dt=1):
+
+        index = int(np.floor(self._step_counter))
+        arclength = self.path.get_closest_arclength(self.position)
+        derivatives = self.path.path_derivatives(arclength)
+
+        # Setting velocities
+        self._state[3] = derivatives[0]
+        self._state[4] = derivatives[1]
+
+        dx = 0.7*dt*self.dx
+        dy = 0.7*dt*self.dy
+        heading = np.arctan2(dy, dx)
+
+        self._state[0] = self.position[0] + dx
+        self._state[1] = self.position[1] + dy
+        self._state[2] = heading
+
+        #print(f'New state for ship {self.index}:{self.position}')
+
+        self._step_counter += 1
+        self._boundary = self.calculate_boundary()
+
+    def update_with_agent(self, dt=1):
+        #print(f'In UPDATE in VESSEL {self.index}')
 
         navigation_states = self.navigate(self.path)
         sector_closenesses, sector_velocities, sector_moving_measurements = self.perceive(self.obstacles)
 
         obs = np.concatenate([navigation_states, sector_closenesses, sector_velocities, sector_moving_measurements])
-
-
 
         if not self._step_counter % 10_000 or not self.agent:
             directory = 'c:/users/amalih/onedrive - ntnu/github/logs/agents/MultiAgent-v0/'

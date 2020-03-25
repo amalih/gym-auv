@@ -48,6 +48,10 @@ class Path():
         """Coordinates of the path's end point."""
         return self._path_coords(self.length)
 
+    @property
+    def path_derivatives(self) -> np.ndarray:
+        return self._path_derivatives
+
     def __call__(self, arclength:float) -> np.ndarray:
         """
         Returns the (x,y) point corresponding to the
@@ -70,6 +74,8 @@ class Path():
         """
         derivative = self._path_derivatives(arclength)
         return np.arctan2(derivative[1], derivative[0])
+
+
 
     def get_closest_arclength(self, position:np.ndarray) -> float:
         """
@@ -102,4 +108,27 @@ class RandomCurveThroughOrigin(Path):
                                    np.array([0, 0]),
                                    newpoint2,
                                    waypoints[-1*waypoint-1:, :]])
+        super().__init__(np.transpose(waypoints))
+
+class RandomCurveFromEdge(Path):
+    def __init__(self, rng, nwaypoints, vessel_pos, length=300):
+        angle_init = 2*np.pi*(rng.rand() - 0.5)
+        start = np.array([0.5*length*np.cos(angle_init), 0.5*length*np.sin(angle_init)])
+        end = -np.array(start)
+        waypoints = np.vstack([start, end])
+        for waypoint in range(nwaypoints // 2):
+            newpoint1 = ((nwaypoints // 2 - waypoint)
+                         * start / (nwaypoints // 2 + 1)
+                         + length / (nwaypoints // 2 + 1)
+                         * (rng.rand()-0.5))
+            newpoint2 = ((nwaypoints // 2 - waypoint)
+                         * end / (nwaypoints // 2 + 1)
+                         + length / (nwaypoints // 2 + 1)
+                         * (rng.rand()-0.5))
+            waypoints = np.vstack([waypoints[:waypoint+1, :],
+                                   newpoint1,
+                                   np.array([0, 0]),
+                                   newpoint2,
+                                   waypoints[-1*waypoint-1:, :]])
+        waypoints = [[x[0]+vessel_pos[0], x[1]+vessel_pos[1]] for x in waypoints]
         super().__init__(np.transpose(waypoints))
