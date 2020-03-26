@@ -132,7 +132,9 @@ class MultiRewarder(BaseRewarder):
         #self.params['lambda'] =  _sample_lambda(scale=0.2)
         #self.params['eta'] = _sample_eta()
 
-    def calculate(self):
+    def calculate(self, vessel=None):
+        if vessel is not None:
+            self._vessel = vessel
         latest_data = self._vessel.req_latest_data()
         nav_states = latest_data['navigation']
         feasible_distances = latest_data['feasible_distances']

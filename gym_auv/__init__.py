@@ -19,7 +19,7 @@ def sector_partition_fun(env, isensor, c=0.1):
 DEFAULT_CONFIG = {
     # ---- EPISODE ---- #
     "min_cumulative_reward": -10000,                 # Minimum cumulative reward received before episode ends
-    "max_timesteps": 5000,                         # Maximum amount of timesteps before episode ends
+    "max_timesteps": 1500,                         # Maximum amount of timesteps before episode ends
     "min_goal_distance": 5,                         # Minimum aboslute distance to the goal position before episode ends
     "min_path_progress": 0.99,                      # Minimum path progress before scenario is considered successful and the episode ended
 
@@ -35,7 +35,7 @@ DEFAULT_CONFIG = {
     "n_sectors": 10,                                 # Number of sensor sectors
     "sector_partition_fun": sector_partition_fun,   # Function that returns corresponding sector for a given sensor index
     "sensor_rotation": False,                       # Whether to activate the sectors in a rotating pattern (for performance reasons)
-    "sensor_range": 100.0,                            # Range of rangefinder sensors [m]
+    "sensor_range": 110.0,                            # Range of rangefinder sensors [m]
     "sensor_log_transform": True,                   # Whether to use a log. transform when calculating closeness                 #
     "observe_obstacle_fun": observe_obstacle_fun,   # Function that outputs whether an obstacle should be observed (True),
                                                     # or if a virtual obstacle based on the latest reading should be used (False).
@@ -101,8 +101,12 @@ SCENARIOS = {
         'entry_point': 'gym_auv.envs:MovingObstacles',
         'config': MOVING_CONFIG
     },
-    'MultiAgent-v0': {
-        'entry_point': 'gym_auv.envs:MultiAgent',
+    'MultiAgentPPO-v0': {
+        'entry_point': 'gym_auv.envs:MultiAgent_PPO',
+        'config': MULTI_CONFIG
+    },
+    'MultiAgentDDPG-v0': {
+        'entry_point': 'gym_auv.envs:MultiAgent_DDPG',
         'config': MULTI_CONFIG
     }
 }

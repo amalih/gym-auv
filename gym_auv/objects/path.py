@@ -111,7 +111,7 @@ class RandomCurveThroughOrigin(Path):
         super().__init__(np.transpose(waypoints))
 
 class RandomCurveFromEdge(Path):
-    def __init__(self, rng, nwaypoints, vessel_pos, length=300):
+    def __init__(self, rng, nwaypoints, vessel_pos, length=200):
         angle_init = 2*np.pi*(rng.rand() - 0.5)
         start = np.array([0.5*length*np.cos(angle_init), 0.5*length*np.sin(angle_init)])
         end = -np.array(start)

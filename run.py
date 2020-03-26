@@ -41,7 +41,7 @@ def create_env(env_id, envconfig, test_mode=False, render_mode='2d', pilot=None,
         env = gym.make(env_id, env_config=envconfig, test_mode=test_mode, render_mode=render_mode, verbose=verbose)
     return env
 
-def make_mp_env(env_id, rank, envconfig, seed=0, pilot=None):
+def make_mp_env(env_id, rank, envconfig, seed=0, pilot=None, num_env=1):
     """
     Utility function for multiprocessed env.
     :param env_id: (str) the environment ID

@@ -185,7 +185,7 @@ class Vessel():
         self.static = False
         self.valid = True
         self.agent = None
-        self.reachable = False
+        self.reachable = True
 
 
         # Initializing private attributes
@@ -271,7 +271,7 @@ class Vessel():
         init_speed = np.array(init_speed, dtype=np.float64)
 
         self._collision = False
-        self.progress = None
+        self._progress = None
         self.smoothed_torque_change = 0
         self.smoothed_torque = 0
 
@@ -364,9 +364,7 @@ class Vessel():
             ))
 
         if not self._nearby_obstacles:
-            if self.index == 0:
-                for ship in self.obstacles:
-                    ship.reachable = False
+            self.reachable = False
             self.last_sensor_dist_measurements = np.ones((self._n_sensors,))*self._sensor_range
             sector_feasible_distances = np.ones((self._n_sectors,))*self._sensor_range
             sector_closenesses = np.zeros((self._n_sectors,))
@@ -376,8 +374,8 @@ class Vessel():
             collision = False
 
         else:
-            if self.index == 0:
-                for ship in self._nearby_obstacles:
+            for ship in self._nearby_obstacles:
+                if ship.index == 0:
                     ship.reachable = True
                 else:
                     ship.reachable = False
@@ -437,9 +435,8 @@ class Vessel():
         self._last_sector_feasible_dists = sector_feasible_distances
         self._last_sector_moving_measurements = sector_moving_measurements
         self._perceive_counter += 1
-        if self.index == 0:
-            self._collision = collision
-        self._sector_moving_measurements = sector_moving_measurements
+        self._collision = collision
+        self._last_sector_moving_measurements = sector_moving_measurements
 
         return (sector_closenesses, sector_velocities, sector_moving_measurements)
         #return (sector_closenesses, sector_velocities)
@@ -504,6 +501,13 @@ class Vessel():
 
         return navigation_states
 
+    def observe(self):
+        navigation_states = self.navigate(self.path)
+        sector_closenesses, sector_velocities, sector_moving_obstacles = self.perceive(self.obstacles)
+
+        obs = np.concatenate([navigation_states, sector_closenesses, sector_velocities, sector_moving_obstacles])
+        return (obs)
+
     def req_latest_data(self) -> dict:
         """Returns dictionary containing the most recent perception and navigation
         states."""
@@ -533,8 +537,8 @@ class Vessel():
         self._state[3] = derivatives[0]
         self._state[4] = derivatives[1]
 
-        dx = 0.7*dt*self.dx
-        dy = 0.7*dt*self.dy
+        dx = 0.5*dt*self.dx
+        dy = 0.5*dt*self.dy
         heading = np.arctan2(dy, dx)
 
         self._state[0] = self.position[0] + dx
@@ -598,6 +602,10 @@ class Vessel():
         boundary_temp = shapely.affinity.translate(boundary_temp, xoff=self.position[0], yoff=self.position[1])
 
         return boundary_temp
+
+    @property
+    def nearby_vessels(self):
+        return [x for x in self._nearby_obstacles if not x.static]
 
     @property
     def collision(self):
@@ -715,4 +723,4 @@ class Vessel():
 
     @property
     def sector_moving_measurements(self):
-        return self._sector_moving_measurements
+        return self._last_sector_moving_measurements
