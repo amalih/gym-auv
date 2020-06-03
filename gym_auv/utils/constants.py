@@ -28,21 +28,21 @@ N_urf = -0.4*Y_urf
 Y_uudr = 19.2
 N_uudr = -0.4*Y_uudr
 
-THRUST_MAX_AUV = 2.0
+THRUST_MAX_AUV = 2.0/2
 MOMENT_MAX_AUV = 0.15
-MAX_SPEED = 2
+MAX_SPEED = 2/2
 
 M =  np.array([[m - X_udot, 0, 0],
     [0, m - Y_vdot, m*x_g - Y_rdot],
     [0, m*x_g - N_vdot, I_z - N_rdot]]
-)   
+)
 M_inv = np.linalg.inv(M)
 
 D =  np.array([
     [2.0, 0, 0],
     [0, 7.0, -2.5425],
     [0, -2.5425, 1.422]
-])  
+])
 
 def B(nu):
     return np.array([
@@ -59,7 +59,7 @@ def C(nu):
         [0, 0, -33.8*v + 11.748*r],
         [0, 0, 25.8*u],
         [33.8*v - 11.748*r, -25.8*u, 0]
-    ])  
+    ])
     return C
 
 def N(nu):
@@ -70,5 +70,5 @@ def N(nu):
         [-X_u, 0, 0],
         [0, -Y_v, m*u - Y_r],
         [0, -N_v, m*x_g*u-N_r]
-    ])  
+    ])
     return N

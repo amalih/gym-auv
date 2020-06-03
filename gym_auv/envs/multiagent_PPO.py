@@ -8,14 +8,18 @@ from gym_auv.objects.path import RandomCurveThroughOrigin, Path
 from gym_auv.objects.obstacles import PolygonObstacle, VesselObstacle, CircularObstacle
 from gym_auv.environment import BaseEnvironment
 import shapely.geometry, shapely.errors
-from gym_auv.objects.rewarder import MultiRewarder
+from gym_auv.objects.rewarder import MultiRewarder, ColavRewarder
 
 import gym_auv.rendering.render2d as render2d
 import gym_auv.rendering.render3d as render3d
 
 
+from stable_baselines import PPO2
+
+
 import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
+MAX_VESSELS = 6
 
 class MultiAgent_PPO(BaseEnvironment):
 
@@ -50,7 +54,7 @@ class MultiAgent_PPO(BaseEnvironment):
         self.config = env_config
 
         # Setting dimension of observation vector
-        self.n_observations = len(Vessel.NAVIGATION_FEATURES) + 4*self.config["n_sectors"]
+        self.n_observations = len(Vessel.NAVIGATION_FEATURES) + 3*self.config["n_sectors"] + ColavRewarder.N_INSIGHTS
 
         self.episode = 0
         self.total_t_steps = 0
@@ -61,6 +65,7 @@ class MultiAgent_PPO(BaseEnvironment):
         # Declaring attributes
         #self.obstacles = None
         self.main_vessel = None
+        #self.agent = None
 
         #self.path = None
 
@@ -85,13 +90,19 @@ class MultiAgent_PPO(BaseEnvironment):
         )
 
         # Initializing rendering
-        self.viewer2d = None
-        self.viewer3d = None
+        self._viewer2d = None
+        self._viewer3d = None
         if self.render_mode == '2d' or self.render_mode == 'both':
             render2d.init_env_viewer(self)
         if self.render_mode == '3d' or self.render_mode == 'both':
             render3d.init_env_viewer(self, autocamera=self.config["autocamera3d"])
 
+        #self.agent = PPO2.load('C:/Users/amalih/Documents/gym-auv-master/logs/agents/MovingObstacles-v0/1589625657ppo/6547288.pkl')
+        self.agent = PPO2.load('C:/Users/amalih/Documents/gym-auv-master/logs/agents/MovingObstacles-v0/1590746004ppo/4641392.pkl')
+
+        #'C:/Users/amalih/OneDrive - NTNU/github/logs/agents/MultiAgentPPO-v0/1064190.pkl'
+
+        self.rewarder_dict = {}
 
         self.reset()
 
@@ -111,27 +122,23 @@ class MultiAgent_PPO(BaseEnvironment):
         print('In GENERATE in MA')
 
         self.main_vessel = Vessel(self.config, width=self.config["vessel_width"])
+        self.rewarder_dict[self.main_vessel.index] = ColavRewarder(self.main_vessel)
+        self.rewarder = self.rewarder_dict[self.main_vessel.index]
+
         prog = 0
         self.path_prog_hist = np.array([prog])
         self.max_path_prog = prog
-        self.rewarder = MultiRewarder(self.main_vessel)
 
         print(f'Ownship created!')
         self.moving_obstacles = [self.main_vessel]
         self.static_obstacles = []
-        self.queued_vessels = []
-
-        #Adding static obstacles
-        #for _ in range(8):
-        #   obstacle = CircularObstacle(*helpers.generate_obstacle(self.rng, self.main_vessel.path, self.main_vessel))
-        #   self.static_obstacles.append(obstacle)
-
         self._vessel_count = 1
+
         #Adding moving obstacles (ships)
         curr_vessel_count = self._vessel_count
-        for i in range(curr_vessel_count ,curr_vessel_count+5):
-            #obst_speed = np.random.random()
+        for i in range(curr_vessel_count ,curr_vessel_count+MAX_VESSELS-3):
             ship = Vessel(self.config, width=self.config["vessel_width"], index=i, vessel_pos=self.main_vessel.position)
+            self.rewarder_dict[ship.index] = ColavRewarder(ship)
             self.moving_obstacles.append(ship)
             print(f'Ship {i} has been created')
             self._vessel_count += 1
@@ -139,8 +146,12 @@ class MultiAgent_PPO(BaseEnvironment):
 
         for ship in self.moving_obstacles:
             other_ships = [x for x in self.moving_obstacles if x.index != ship.index]
-            #ship.obstacles.extend(other_ships)
             ship.obstacles = np.hstack([self.static_obstacles, other_ships])
+
+        #Adding static obstacles
+        for _ in range(8):
+            obstacle = CircularObstacle(*helpers.generate_obstacle(self.rng, self.path, self.vessel, displacement_dist_std=500))
+            self.static_obstacles.append(obstacle)
 
 
         print('Exiting GENERATE in MA')
@@ -165,76 +176,50 @@ class MultiAgent_PPO(BaseEnvironment):
         info : dict
         Dictionary with data used for reporting or debugging
         """
-        # if len(self.queued_vessels) == 0:
-        #     current_vessel = self.main_vessel
-        # else:
-        #     current_vessel = self.queued_vessels.pop(0)
-        #
-        # current_index = current_vessel.index
-        #
-        # #[vessel.update_without_agent(self.config["t_step_size"]) for vessel in self.moving_obstacles if vessel.index != current_index]
-        #
-        # action[0] = (action[0] + 1)/2
-        # current_vessel.step(action)
-        #
-        # reward = self.rewarder.calculate(current_vessel)
-        # self.cumulative_reward += reward
-        #
-        #
-        # vessel_data = self.main_vessel.req_latest_data()
-        # self.collision = vessel_data['collision']
-        # self.reached_goal = vessel_data['reached_goal']
-        # self.progress = vessel_data['progress']
-        #
-        # info = {}
-        # info['collision'] = self.collision
-        # info['reached_goal'] = self.reached_goal
-        # info['progress'] = self.progress
-        #
-        # done = self._isdone()
-        # self._save_latest_step()
-        #
-        # self.moving_obstacles = self.main_vessel.nearby_vessels
-        #
-        # #Adding moving obstacles (ships)
-        # if not self.t_step % 150:
-        #     #print(f'Time step: {self.t_step}, position of vessel: {self.main_vessel.position}')
-        #     curr_vessel_count = self._vessel_count
-        #     for i in range(curr_vessel_count ,curr_vessel_count+5):
-        #         #obst_speed = np.random.random()
-        #         ship = Vessel(self.config, width=self.config["vessel_width"], index=i, vessel_pos=self.main_vessel.position)
-        #
-        #         self.moving_obstacles.append(ship)
-        #         print(f'Ship {i} has been created')
-        #         self._vessel_count += 1
-        #
-        #
-        #     for ship in self.moving_obstacles:
-        #         other_ships = [x for x in self.moving_obstacles if x.index != ship.index]
-        #         #ship.obstacles.extend(other_ships)
-        #         ship.obstacles = np.hstack([self.static_obstacles, other_ships])
-        #
-        # if len(self.queued_vessels) == 0:
-        #     self.queued_vessels = [x for x in self.moving_obstacles if x.index != 0]
-        #     next_vessel = self.main_vessel
-        # else:
-        #     next_vessel = self.queued_vessels[0]
-        # obs = next_vessel.observe()
-        #
-        # self.t_step += 1
-        #
-        # return (obs, reward, done, info)
 
-
-
-
-
-        [obst.update(self.config["t_step_size"]) for obst in self.moving_obstacles if obst.index != 0]
-
+        #print(f'STEP {self.t_step}')
 
         action[0] = (action[0] + 1)/2 # Done to be compatible with RL algorithms that require symmetric action spaces
         if np.isnan(action).any(): action = np.zeros(action.shape)
         self.main_vessel.step(action)
+
+        if self.agent is None:
+            [obst.update_without_agent(self.config["t_step_size"]) for obst in self.moving_obstacles if obst.index != 0]
+
+        else:
+            for ship in self.moving_obstacles:
+                if ship.index != 0:
+                    obs = ship.observe()
+                    reward = self.rewarder_dict[ship.index].calculate()
+                    insight = self.rewarder_dict[ship.index].insight()
+                    #print(f'Reward for ship {ship.index}: {reward} -- lambda: {insight}')
+                    obs = np.concatenate([insight,obs])
+                    action, _states = self.agent.predict(obs, deterministic=True)
+                    action[0] = (action[0] + 1)/2
+                    ship.step(action)
+                    #print(f'action taken for ship {ship.index}: {action}')
+
+
+
+
+        #Adding moving obstacles (ships)
+        if len(self.main_vessel.reachable_vessels) < MAX_VESSELS-3:
+            curr_vessel_count = self._vessel_count
+            for i in range(curr_vessel_count ,curr_vessel_count+1):
+                ship = Vessel(self.config, width=self.config["vessel_width"], index=i, vessel_pos=self.main_vessel.position)
+                self.rewarder_dict[ship.index] = ColavRewarder(ship)
+                self.moving_obstacles.append(ship)
+                print(f'Ship {i} has been created')
+                self._vessel_count += 1
+
+            for ship in self.moving_obstacles:
+                other_ships = [x for x in self.moving_obstacles if x.index != ship.index]
+                ship.obstacles = np.hstack([self.static_obstacles, other_ships])
+
+        self.t_step += 1
+
+        # If the environment is dynamic, calling self.update will change it.
+        self._update()
 
 
         # Getting observation vector
@@ -256,52 +241,38 @@ class MultiAgent_PPO(BaseEnvironment):
 
         # Testing criteria for ending the episode
         done = self._isdone()
-
         self._save_latest_step()
-        # If the environment is dynamic, calling self.update will change it.
-        self._update()
 
-        self.t_step += 1
-
-        #Adding moving obstacles (ships)
-        if not self.t_step % 100:
-            #print(f'Time step: {self.t_step}, position of vessel: {self.main_vessel.position}')
-            curr_vessel_count = self._vessel_count
-            for i in range(curr_vessel_count ,curr_vessel_count+5):
-                #obst_speed = np.random.random()
-                ship = Vessel(self.config, width=self.config["vessel_width"], index=i, vessel_pos=self.main_vessel.position)
-
-                self.moving_obstacles.append(ship)
-                print(f'Ship {i} has been created')
-                self._vessel_count += 1
-
-
-            for ship in self.moving_obstacles:
-                other_ships = [x for x in self.moving_obstacles if x.index != ship.index]
-                #ship.obstacles.extend(other_ships)
-                ship.obstacles = np.hstack([self.static_obstacles, other_ships])
 
         return (obs, reward, done, info)
 
     def _update(self):
-        valid_ships = [self.main_vessel]
-        for ship in self.moving_obstacles:
-            if (not ship.collision) and ship.index != 0:# and ship.reachable :
-                valid_ships.append(ship)
-    #    print(f'Time: {self.t_step}')
-        print([x.index for x in valid_ships])
 
-        self.moving_obstacles = valid_ships
+        self.moving_obstacles = self.main_vessel.inrange_vessels
+        self.moving_obstacles.append(self.main_vessel)
 
         for ship in self.moving_obstacles:
             other_ships = [x for x in self.moving_obstacles if x.index != ship.index]
-            #ship.obstacles.extend(other_ships)
             ship.obstacles = np.hstack([self.static_obstacles, other_ships])
-        #print('Exiting UPDATE in MA')
+
+        if (not self.t_step % 10_000 or self.agent is None) and not self.test_mode:
+            directory = 'c:/users/amalih/onedrive - ntnu/github/logs/agents/MultiAgentPPO-v0/'
+            latest_subdir = max([os.path.join(directory,d) for d in os.listdir(directory)], key=os.path.getmtime)
+            latest_subdir = latest_subdir + '/'
+
+            try:
+                latest_agent = max([os.path.join(latest_subdir,d) for d in os.listdir(latest_subdir)], key=os.path.getmtime)
+                print(latest_agent)
+                self.agent = PPO2.load(latest_agent)
+
+            except ValueError:
+                pass
 
     def observe(self):
+        reward_insight = self.rewarder.insight()
         navigation_states = self.main_vessel.navigate(self.path)
-        sector_closenesses, sector_velocities, sector_moving_obstacles = self.main_vessel.perceive(self.obstacles)
+        sector_closenesses, sector_velocities = self.main_vessel.perceive(self.obstacles)
+        #print(f'Lambda for main ship: {reward_insight}')
 
-        obs = np.concatenate([navigation_states, sector_closenesses, sector_velocities, sector_moving_obstacles])
+        obs = np.concatenate([reward_insight, navigation_states, sector_closenesses, sector_velocities])
         return (obs)

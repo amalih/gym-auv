@@ -7,45 +7,50 @@ def observe_obstacle_fun(t, dist):
 def return_true_fun(t, dist):
     return True
 
+
+
 def sector_partition_fun(env, isensor, c=0.1):
-    #a = env.config["n_sensors_per_sector"]*env.config["n_sectors"]
-    #b = env.config["n_sectors"]
-    d = env.config["n_sensors_per_sector"]
-    #sigma = lambda x: b / (1 + np.exp((-x + a / 2) / (c * a)))
-    sigma = lambda x: x/d
-    #return int(np.floor(sigma(isensor) - sigma(0)))
-    return int(np.floor(sigma(isensor)))
+    a = env.config["n_sensors_per_sector"]*env.config["n_sectors"]
+    b = env.config["n_sectors"]
+    sigma = lambda x: b / (1 + np.exp((-x + a / 2) / (c * a)))
+    return int(np.floor(sigma(isensor) - sigma(0)))
 
 DEFAULT_CONFIG = {
     # ---- EPISODE ---- #
     "min_cumulative_reward": -10000,                 # Minimum cumulative reward received before episode ends
-    "max_timesteps": 1500,                         # Maximum amount of timesteps before episode ends
+    "max_timesteps": 4000,                         # Maximum amount of timesteps before episode ends
     "min_goal_distance": 5,                         # Minimum aboslute distance to the goal position before episode ends
     "min_path_progress": 0.99,                      # Minimum path progress before scenario is considered successful and the episode ended
 
     # ---- SIMULATION ---- #
-    "t_step_size": 1.0,                             # Length of simulation timestep [s]
+    "t_step_size": 0.5,                             # Length of simulation timestep [s]
     "sensor_frequency": 1.0,                        # Sensor execution frequency (0.0 = never execute, 1.0 = always execute)
+    "observe_frequency": 1.0,                       # Frequency of using actual obstacles instead of virtual ones for detection
 
     # ---- VESSEL ---- #
-    "vessel_width": 4.0,                            # Width of vessel [m]
-    "look_ahead_distance": 50,                     # Path look-ahead distance for vessel [m]
+    'thrust_max_auv': 1.0,                          # Maximum thrust of the AUV [N]
+    'moment_max_auv': 0.15,                         # maximum moment applied to the AUV [Nm]
+    "vessel_width": 1.255,# 1.255,                          # Width of vessel [m]
+    "feasibility_width_multiplier": 5,            # Multiplier for vessel width in feasibility pooling algorithm
+    "look_ahead_distance": 300,                     # Path look-ahead distance for vessel [m]
+    "sensing": True,                                # Whether rangerfinder sensors for perception should be activated
     "sensor_interval_load_obstacles": 25,           # Interval for loading nearby obstacles
-    "n_sensors_per_sector": 15,                     # Number of rangefinder sensors within each sector
-    "n_sectors": 10,                                 # Number of sensor sectors
+    "n_sensors_per_sector": 20,                     # Number of rangefinder sensors within each sector
+    "n_sectors":9,                                 # Number of sensor sectors
     "sector_partition_fun": sector_partition_fun,   # Function that returns corresponding sector for a given sensor index
     "sensor_rotation": False,                       # Whether to activate the sectors in a rotating pattern (for performance reasons)
-    "sensor_range": 110.0,                            # Range of rangefinder sensors [m]
+    "sensor_range": 150,                          # Range of rangefinder sensors [m]
     "sensor_log_transform": True,                   # Whether to use a log. transform when calculating closeness                 #
-    "observe_obstacle_fun": observe_obstacle_fun,   # Function that outputs whether an obstacle should be observed (True),
+    "observe_obstacle_fun": return_true_fun,   # Function that outputs whether an obstacle should be observed (True),
                                                     # or if a virtual obstacle based on the latest reading should be used (False).
                                                     # This represents a trade-off between sensor accuracy and computation speed.
                                                     # With real-world terrain, using virtual obstacles is critical for performance.
 
     # ---- RENDERING ---- #
     "show_indicators": True,                        # Whether to show debug information on screen during 2d rendering.
-    'autocamera3d': False                           # Whether to let the camera automatically rotate during 3d rendering
+    "autocamera3d": True                            # Whether to let the camera automatically rotate during 3d rendering
 }
+
 
 MOVING_CONFIG = DEFAULT_CONFIG.copy()
 MOVING_CONFIG['observe_obstacle_fun'] = return_true_fun
@@ -108,7 +113,16 @@ SCENARIOS = {
     'MultiAgentDDPG-v0': {
         'entry_point': 'gym_auv.envs:MultiAgent_DDPG',
         'config': MULTI_CONFIG
+    },
+    'TwoVessel_HeadOn-v0': {
+        'entry_point': 'gym_auv.envs:TwoVessel_HeadOn',
+        'config': MULTI_CONFIG
+    },
+    'GridEnv-v0': {
+        'entry_point': 'gym_auv.envs:GridEnv',
+        'config': MULTI_CONFIG
     }
+
 }
 
 for scenario in SCENARIOS:
